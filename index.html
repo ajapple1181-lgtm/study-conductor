@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>STUDY / LIFE Conductor</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>CONDUCTOR</title>
+  <!-- キャッシュ対策：?v=3 -->
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
   <header class="topbar">
@@ -15,147 +16,187 @@
         <div class="brand__sub">Task Operation System</div>
       </div>
     </div>
-
-    <div class="tabs" role="tablist" aria-label="mode tabs">
-      <button class="tab is-active" data-mode="study" role="tab" aria-selected="true">勉強線</button>
-      <button class="tab" data-mode="life" role="tab" aria-selected="false">生活線</button>
-    </div>
-
-    <div class="status">
-      <div class="status__pill" id="runStatePill">待機</div>
-      <div class="status__clock" id="clockText">--:--</div>
-    </div>
+    <div class="clock" id="clockText">--:--</div>
   </header>
 
-  <main class="layout">
-    <!-- 左：運行表 & 登録フォーム -->
-    <section class="panel panel--left">
-      <div class="panel__title">運行表（キュー）</div>
+  <nav class="nav">
+    <button class="nav__btn is-active" data-screen="study">勉強</button>
+    <button class="nav__btn" data-screen="life">生活</button>
+    <button class="nav__btn" data-screen="run">実行</button>
+  </nav>
 
-      <div class="queueTools">
-        <button class="btn btn--ghost" id="btnClearDone" title="完了ログを消す">完了ログ消去</button>
-        <button class="btn btn--ghost" id="btnResetAll" title="全データ初期化">全初期化</button>
-      </div>
+  <main class="main">
 
-      <div class="queueWrap">
-        <ul class="queue" id="queueList"></ul>
-      </div>
+    <!-- 勉強設定 -->
+    <section class="screen is-active" id="screenStudy" aria-label="勉強設定">
+      <div class="card">
+        <div class="card__title">新規タスク</div>
 
-      <div class="divider"></div>
-
-      <div class="panel__title" id="formTitle">新規タスク（勉強）</div>
-
-      <!-- 勉強フォーム -->
-      <form id="studyForm" class="form">
-        <div class="grid2">
+        <form id="studyForm" class="form">
           <label class="field">
-            <span class="field__label">系（色）</span>
+            <span class="field__label">系</span>
             <select id="studyCategory" required></select>
           </label>
 
           <label class="field">
             <span class="field__label">科目</span>
-            <select id="studySubject" required></select>
+            <select id="studySubject" required disabled></select>
           </label>
-        </div>
 
-        <label class="field" id="studyOtherWrap" hidden>
-          <span class="field__label">その他の科目名</span>
-          <input id="studyOtherSubject" type="text" placeholder="例：情報、保健、探究…" />
-        </label>
+          <label class="field" id="studyOtherSubjectWrap" hidden>
+            <span class="field__label">その他の科目名</span>
+            <input id="studyOtherSubject" type="text" placeholder="例：情報、保健、探究…" />
+          </label>
 
-        <label class="field">
-          <span class="field__label">タスク内容</span>
-          <input id="studyTask" type="text" required placeholder="例：チャート演習 / ワーク / ノートまとめ" />
-        </label>
+          <label class="field">
+            <span class="field__label">タスク内容</span>
+            <select id="studyTaskType" required disabled></select>
+          </label>
 
-        <div class="timeBox">
-          <div class="timeBox__label">時間</div>
-          <div class="timeBox__row">
-            <label class="radio">
-              <input type="radio" name="studyTimeMode" value="duration" checked />
-              <span>何分間</span>
-            </label>
-            <label class="radio">
-              <input type="radio" name="studyTimeMode" value="until" />
-              <span>何時何分まで</span>
-            </label>
+          <label class="field" id="studyTaskFreeWrap" hidden>
+            <span class="field__label">タスク内容（自由入力）</span>
+            <input id="studyTaskFree" type="text" placeholder="例：ノートまとめ、演習、提出物…" />
+          </label>
+
+          <div class="box">
+            <div class="box__title">時間</div>
+
+            <div class="seg">
+              <label class="seg__item">
+                <input type="radio" name="studyTimeMode" value="duration" />
+                <span>時間</span>
+              </label>
+              <label class="seg__item">
+                <input type="radio" name="studyTimeMode" value="until" />
+                <span>時刻</span>
+              </label>
+            </div>
+
+            <div class="grid2">
+              <label class="field" id="studyDurationWrap" hidden>
+                <span class="field__label">分</span>
+                <input id="studyDurationMin" type="number" min="1" step="1" value="30" />
+              </label>
+
+              <label class="field" id="studyUntilWrap" hidden>
+                <span class="field__label">まで</span>
+                <input id="studyUntilTime" type="time" />
+              </label>
+            </div>
           </div>
 
-          <div class="grid2">
-            <label class="field" id="studyDurationWrap">
-              <span class="field__label">分</span>
-              <input id="studyDurationMin" type="number" min="1" step="1" value="30" />
-            </label>
-
-            <label class="field" id="studyUntilWrap" hidden>
-              <span class="field__label">まで（時刻）</span>
-              <input id="studyUntilTime" type="time" />
-            </label>
-          </div>
-        </div>
-
-        <div class="ranges">
-          <div class="ranges__head">
-            <div class="ranges__title">範囲（複数OK）</div>
-            <button type="button" class="btn btn--ghost" id="btnAddRange">＋ 範囲追加</button>
-          </div>
-          <div id="rangesList" class="ranges__list"></div>
-        </div>
-
-        <button class="btn btn--primary" type="submit">運行表に追加</button>
-      </form>
-
-      <!-- 生活フォーム -->
-      <form id="lifeForm" class="form" hidden>
-        <label class="field">
-          <span class="field__label">内容</span>
-          <input id="lifeTask" type="text" required placeholder="例：風呂 / ごはん / 片付け / 連絡" />
-        </label>
-
-        <div class="timeBox">
-          <div class="timeBox__label">時間</div>
-          <div class="timeBox__row">
-            <label class="radio">
-              <input type="radio" name="lifeTimeMode" value="duration" checked />
-              <span>何分間</span>
-            </label>
-            <label class="radio">
-              <input type="radio" name="lifeTimeMode" value="until" />
-              <span>何時何分まで</span>
-            </label>
+          <div class="box">
+            <div class="box__head">
+              <div class="box__title">範囲</div>
+              <button type="button" class="btn btn--ghost" id="btnAddRangeStudy">＋ 追加</button>
+            </div>
+            <div id="studyRangesList" class="ranges"></div>
           </div>
 
-          <div class="grid2">
-            <label class="field" id="lifeDurationWrap">
-              <span class="field__label">分</span>
-              <input id="lifeDurationMin" type="number" min="1" step="1" value="15" />
-            </label>
+          <button class="btn btn--primary" type="submit">追加</button>
+        </form>
+      </div>
 
-            <label class="field" id="lifeUntilWrap" hidden>
-              <span class="field__label">まで（時刻）</span>
-              <input id="lifeUntilTime" type="time" />
-            </label>
+      <div class="card">
+        <div class="card__head">
+          <div class="card__title">運行表</div>
+          <div class="card__tools">
+            <button class="btn btn--ghost" id="btnStudyClearDone" type="button">完了ログ消去</button>
+            <button class="btn btn--ghost" id="btnResetAll" type="button">全初期化</button>
           </div>
         </div>
+        <ul class="list" id="studyQueue"></ul>
+      </div>
 
-        <button class="btn btn--primary" type="submit">運行表に追加</button>
-      </form>
+      <div class="card">
+        <div class="card__title">完了ログ</div>
+        <ul class="list" id="studyDone"></ul>
+      </div>
     </section>
 
-    <!-- 右：運転席（実行画面） -->
-    <section class="panel panel--right">
-      <div class="driver">
-        <div class="driver__subject" id="nowSubject">—</div>
-        <div class="driver__line" id="nowLineName">STUDY LINE</div>
+    <!-- 生活設定 -->
+    <section class="screen" id="screenLife" aria-label="生活設定">
+      <div class="card">
+        <div class="card__title">新規タスク</div>
 
-        <div class="driver__display">
-          <div class="driver__big" id="nowTaskTitle">待機中</div>
-          <div class="driver__sub" id="nowTaskDetail">運行表にタスクを追加してください</div>
+        <form id="lifeForm" class="form">
+          <label class="field">
+            <span class="field__label">内容</span>
+            <input id="lifeTask" type="text" required placeholder="例：風呂、片付け、連絡…" />
+          </label>
 
-          <div class="driver__ranges" id="nowRanges" hidden>
+          <div class="box">
+            <div class="box__title">時間</div>
+
+            <div class="seg">
+              <label class="seg__item">
+                <input type="radio" name="lifeTimeMode" value="duration" />
+                <span>時間</span>
+              </label>
+              <label class="seg__item">
+                <input type="radio" name="lifeTimeMode" value="until" />
+                <span>時刻</span>
+              </label>
+            </div>
+
+            <div class="grid2">
+              <label class="field" id="lifeDurationWrap" hidden>
+                <span class="field__label">分</span>
+                <input id="lifeDurationMin" type="number" min="1" step="1" value="15" />
+              </label>
+
+              <label class="field" id="lifeUntilWrap" hidden>
+                <span class="field__label">まで</span>
+                <input id="lifeUntilTime" type="time" />
+              </label>
+            </div>
+          </div>
+
+          <button class="btn btn--primary" type="submit">追加</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card__head">
+          <div class="card__title">運行表</div>
+          <div class="card__tools">
+            <button class="btn btn--ghost" id="btnLifeClearDone" type="button">完了ログ消去</button>
+            <button class="btn btn--ghost" id="btnResetAll2" type="button">全初期化</button>
+          </div>
+        </div>
+        <ul class="list" id="lifeQueue"></ul>
+      </div>
+
+      <div class="card">
+        <div class="card__title">完了ログ</div>
+        <ul class="list" id="lifeDone"></ul>
+      </div>
+    </section>
+
+    <!-- 実行 -->
+    <section class="screen" id="screenRun" aria-label="実行">
+      <div class="card">
+        <div class="card__head">
+          <div class="card__title">運転席</div>
+          <div class="card__tools">
+            <button class="btn btn--ghost" id="btnRunResetTimer" type="button">タイマーリセット</button>
+          </div>
+        </div>
+
+        <div class="linePick">
+          <button class="linePick__btn is-active" data-line="study" id="pickStudy">勉強線</button>
+          <button class="linePick__btn" data-line="life" id="pickLife">生活線</button>
+        </div>
+
+        <div class="driver" id="driverBox">
+          <div class="driver__subject" id="nowSubject">—</div>
+
+          <div class="driver__big" id="nowTitle">待機中</div>
+          <div class="driver__sub" id="nowSub">運行表にタスクを追加してください</div>
+
+          <div class="driver__ranges" id="nowRangesWrap" hidden>
             <div class="driver__rangesTitle">範囲</div>
-            <ul class="driver__rangesList" id="nowRangesList"></ul>
+            <ul class="driver__rangesList" id="nowRanges"></ul>
           </div>
 
           <div class="timer">
@@ -163,28 +204,24 @@
             <div class="timer__value" id="timerText">--:--</div>
             <div class="timer__meta" id="timerMeta"></div>
           </div>
-        </div>
 
-        <div class="controls">
-          <button class="btn btn--big" id="btnStartPause">発車</button>
-          <button class="btn btn--big btn--ok" id="btnArrive">到着（完了）</button>
-          <button class="btn btn--big btn--ghost" id="btnSkip">次へ（スキップ）</button>
-        </div>
+          <div class="controls">
+            <button class="btn btn--big" id="btnStartPause">発車</button>
+            <button class="btn btn--big btn--ok" id="btnArrive">到着</button>
+            <button class="btn btn--big btn--ghost" id="btnSkip">次へ</button>
+          </div>
 
-        <div class="next">
-          <div class="next__label">次駅（次タスク）</div>
-          <div class="next__value" id="nextPreview">—</div>
-        </div>
-
-        <div class="done">
-          <div class="done__label">完了ログ</div>
-          <ul class="done__list" id="doneList"></ul>
+          <div class="next">
+            <div class="next__label">次</div>
+            <div class="next__value" id="nextPreview">—</div>
+          </div>
         </div>
       </div>
     </section>
+
   </main>
 
-  <!-- モーダル（到着確認） -->
+  <!-- モーダル -->
   <div class="modal" id="modal" hidden>
     <div class="modal__card">
       <div class="modal__title" id="modalTitle">確認</div>
@@ -196,6 +233,7 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- キャッシュ対策：?v=3 -->
+  <script src="app.js?v=3"></script>
 </body>
   </html>
