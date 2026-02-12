@@ -1,218 +1,234 @@
-/* =========================
-   STUDY / LIFE Conductor
-   - build不要、GitHub Pages向け
-   - localStorageに保存
-========================= */
-
-const LS_KEY = "conductor.v1";
+const LS_KEY = "conductor.v3";
 
 const COLORS = {
-  "国語系": getCssVar("--pink"),
-  "数学系": getCssVar("--blue"),
-  "英語系": getCssVar("--purple"),
-  "理科系": getCssVar("--green"),
-  "社会系": getCssVar("--yellow"),
-  "その他": getCssVar("--gray"),
+  "国語系": css("--pink"),
+  "数学系": css("--blue"),
+  "英語系": css("--purple"),
+  "理科系": css("--green"),
+  "社会系": css("--yellow"),
+  "その他": css("--gray"),
 };
 
-const STUDY_MAP = {
+const SUBJECTS_BY_CATEGORY = {
   "国語系": ["論国", "古典"],
-  "数学系": ["数学Ⅱ", "数学C"],
+  "数学系": ["数学Ⅲ", "数学C"],
   "英語系": ["英C", "論表"],
   "理科系": ["化学", "生物"],
   "社会系": ["地理", "公共"],
-  "その他": ["（自由入力）"],
+  "その他": ["（入力）"],
 };
 
-let state = loadState();
-let tickTimer = null;
+const TASK_OPTIONS_BY_SUBJECT = {
+  "論国": ["教科書", "漢字", "現代文課題"],
+  "古典": ["教科書", "古文単語", "古文課題", "漢文課題"],
+  "数学Ⅲ": ["予習", "復習", "4STEP", "課題"],
+  "数学C": ["予習", "復習", "4STEP", "課題"],
+  "英C": ["予習", "復習", "CROWN", "Cutting Edge", "LEAP", "課題"],
+  "論表": ["予習", "復習", "Write to the point", "Scramble"],
+  "化学": ["予習", "復習", "セミナー"],
+  "生物": ["予習", "復習", "セミナー"],
+  "地理": ["教科書"],
+  "公共": ["教科書"],
+};
 
-/* ---------- DOM ---------- */
+const ALL_TASK_OPTIONS = uniq([
+  ...Object.values(TASK_OPTIONS_BY_SUBJECT).flat(),
+  "自由入力",
+]);
+
+let state = loadState();
+let tickHandle = null;
+
+/* DOM */
 const $ = (q) => document.querySelector(q);
 
-const tabs = Array.from(document.querySelectorAll(".tab"));
-const runStatePill = $("#runStatePill");
 const clockText = $("#clockText");
+const navBtns = Array.from(document.querySelectorAll(".nav__btn"));
+const screens = {
+  study: $("#screenStudy"),
+  life: $("#screenLife"),
+  run: $("#screenRun"),
+};
 
-const queueList = $("#queueList");
-const doneList = $("#doneList");
-
-const formTitle = $("#formTitle");
+/* Study form */
 const studyForm = $("#studyForm");
-const lifeForm = $("#lifeForm");
-
 const studyCategory = $("#studyCategory");
 const studySubject = $("#studySubject");
-const studyOtherWrap = $("#studyOtherWrap");
+const studyOtherSubjectWrap = $("#studyOtherSubjectWrap");
 const studyOtherSubject = $("#studyOtherSubject");
-const studyTask = $("#studyTask");
+
+const studyTaskType = $("#studyTaskType");
+const studyTaskFreeWrap = $("#studyTaskFreeWrap");
+const studyTaskFree = $("#studyTaskFree");
 
 const studyDurationWrap = $("#studyDurationWrap");
 const studyUntilWrap = $("#studyUntilWrap");
 const studyDurationMin = $("#studyDurationMin");
 const studyUntilTime = $("#studyUntilTime");
 
-const rangesList = $("#rangesList");
-const btnAddRange = $("#btnAddRange");
+const studyRangesList = $("#studyRangesList");
+const btnAddRangeStudy = $("#btnAddRangeStudy");
 
+/* Life form */
+const lifeForm = $("#lifeForm");
 const lifeTask = $("#lifeTask");
 const lifeDurationWrap = $("#lifeDurationWrap");
 const lifeUntilWrap = $("#lifeUntilWrap");
 const lifeDurationMin = $("#lifeDurationMin");
 const lifeUntilTime = $("#lifeUntilTime");
 
-const nowSubject = $("#nowSubject");
-const nowLineName = $("#nowLineName");
-const nowTaskTitle = $("#nowTaskTitle");
-const nowTaskDetail = $("#nowTaskDetail");
-const nowRanges = $("#nowRanges");
-const nowRangesList = $("#nowRangesList");
+/* Lists */
+const studyQueueEl = $("#studyQueue");
+const lifeQueueEl = $("#lifeQueue");
+const studyDoneEl = $("#studyDone");
+const lifeDoneEl = $("#lifeDone");
 
+/* Tools */
+const btnStudyClearDone = $("#btnStudyClearDone");
+const btnLifeClearDone = $("#btnLifeClearDone");
+const btnResetAll = $("#btnResetAll");
+const btnResetAll2 = $("#btnResetAll2");
+
+/* Run */
+const pickStudy = $("#pickStudy");
+const pickLife = $("#pickLife");
+const driverBox = $("#driverBox");
+const nowSubject = $("#nowSubject");
+const nowTitle = $("#nowTitle");
+const nowSub = $("#nowSub");
+const nowRangesWrap = $("#nowRangesWrap");
+const nowRanges = $("#nowRanges");
 const timerText = $("#timerText");
 const timerMeta = $("#timerMeta");
-
 const btnStartPause = $("#btnStartPause");
 const btnArrive = $("#btnArrive");
 const btnSkip = $("#btnSkip");
-
 const nextPreview = $("#nextPreview");
+const btnRunResetTimer = $("#btnRunResetTimer");
 
-const btnClearDone = $("#btnClearDone");
-const btnResetAll = $("#btnResetAll");
-
+/* Modal */
 const modal = $("#modal");
 const modalTitle = $("#modalTitle");
 const modalText = $("#modalText");
 const modalCancel = $("#modalCancel");
 const modalOk = $("#modalOk");
 
-/* ---------- init ---------- */
+/* init */
 initCategorySelect();
-syncSubjectSelect();
+syncStudySubjectSelect();
+syncStudyTaskSelect();
 syncTimeModeUI("study");
 syncTimeModeUI("life");
 
+ensureAtLeastOneRangeRow(studyRangesList);
 renderAll();
 startClock();
-startTickLoop();
+startTick();
 
-/* ---------- events ---------- */
-tabs.forEach((b) => {
+/* navigation */
+navBtns.forEach((b) => {
   b.addEventListener("click", () => {
-    const mode = b.dataset.mode;
-    setMode(mode);
+    setScreen(b.dataset.screen);
   });
 });
 
+/* study form events */
 studyCategory.addEventListener("change", () => {
-  syncSubjectSelect();
+  syncStudySubjectSelect();
+  syncStudyTaskSelect();
   renderAll();
 });
 
 studySubject.addEventListener("change", () => {
-  const isOther = isOtherSelected();
-  studyOtherWrap.hidden = !isOther;
+  syncStudyTaskSelect();
 });
 
-document.querySelectorAll("input[name=studyTimeMode]").forEach((r) => {
+studyOtherSubject.addEventListener("input", () => {
+  // その他でもタスク選択は可能なので、ここではUI更新のみ
+  renderAll();
+});
+
+studyTaskType.addEventListener("change", () => {
+  const v = studyTaskType.value;
+  studyTaskFreeWrap.hidden = (v !== "自由入力");
+});
+
+document.querySelectorAll('input[name="studyTimeMode"]').forEach((r) => {
   r.addEventListener("change", () => syncTimeModeUI("study"));
 });
-document.querySelectorAll("input[name=lifeTimeMode]").forEach((r) => {
-  r.addEventListener("change", () => syncTimeModeUI("life"));
-});
 
-btnAddRange.addEventListener("click", () => addRangeRow());
+btnAddRangeStudy.addEventListener("click", () => addRangeRow(studyRangesList));
 
 studyForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  addStudyTaskFromForm();
+  addStudyTask();
+});
+
+/* life form events */
+document.querySelectorAll('input[name="lifeTimeMode"]').forEach((r) => {
+  r.addEventListener("change", () => syncTimeModeUI("life"));
 });
 
 lifeForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  addLifeTaskFromForm();
+  addLifeTask();
 });
 
-btnStartPause.addEventListener("click", () => {
-  const cur = getCurrentTask();
-  if (!cur) return;
+/* clear & reset */
+btnStudyClearDone.addEventListener("click", () => confirmModal(
+  "確認",
+  "勉強の完了ログを消しますか？",
+  "消去",
+  () => { state.study.done = []; saveState(); renderAll(); }
+));
 
-  if (!state.run.isRunning) {
-    // 初回発車：endAt未設定なら設定
-    if (!state.run.endAt) {
-      const endAt = computeEndAtFromTask(cur);
-      state.run.endAt = endAt;
-    }
-    state.run.isRunning = true;
-  } else {
-    // 一時停止：残り時間を保持するため endAt をズラす
-    // pause時点のremainingを保存し、再開時にendAtを再計算
-    state.run.isRunning = false;
-    state.run.remainingOnPauseMs = Math.max(0, state.run.endAt - Date.now());
-  }
+btnLifeClearDone.addEventListener("click", () => confirmModal(
+  "確認",
+  "生活の完了ログを消しますか？",
+  "消去",
+  () => { state.life.done = []; saveState(); renderAll(); }
+));
 
-  if (!state.run.isRunning && state.run.remainingOnPauseMs != null) {
-    // UIだけ更新
-  } else if (state.run.isRunning && state.run.remainingOnPauseMs != null) {
-    // 再開：pause分を反映
-    state.run.endAt = Date.now() + state.run.remainingOnPauseMs;
-    state.run.remainingOnPauseMs = null;
-  }
+btnResetAll.addEventListener("click", () => confirmModal(
+  "最終確認",
+  "全データを初期化しますか？",
+  "初期化",
+  () => resetAll()
+));
 
-  saveState();
-  renderAll();
-});
+btnResetAll2.addEventListener("click", () => confirmModal(
+  "最終確認",
+  "全データを初期化しますか？",
+  "初期化",
+  () => resetAll()
+));
 
+/* run line pick */
+pickStudy.addEventListener("click", () => setRunLine("study"));
+pickLife.addEventListener("click", () => setRunLine("life"));
+
+/* run controls */
+btnStartPause.addEventListener("click", () => toggleStartPause());
 btnArrive.addEventListener("click", () => {
-  const cur = getCurrentTask();
+  const cur = getRunCurrentTask();
   if (!cur) return;
-
-  openModal({
-    title: "到着確認",
-    text: `「${formatTaskShort(cur)}」を完了にしますか？`,
-    okText: "到着（完了）",
-    onOk: () => completeCurrentTask(),
-  });
+  confirmModal("到着確認", `「${taskShort(cur)}」を完了にしますか？`, "到着", () => completeRunTask());
 });
-
 btnSkip.addEventListener("click", () => {
-  const cur = getCurrentTask();
+  const cur = getRunCurrentTask();
   if (!cur) return;
+  confirmModal("確認", `「${taskShort(cur)}」を次へ送りますか？`, "次へ", () => skipRunTask());
+});
 
-  openModal({
-    title: "次へ確認",
-    text: `「${formatTaskShort(cur)}」をスキップして次へ進みますか？`,
-    okText: "次へ",
-    onOk: () => skipCurrentTask(),
+btnRunResetTimer.addEventListener("click", () => {
+  confirmModal("確認", "タイマーをリセットしますか？（タスクは消えません）", "リセット", () => {
+    stopRunTimer();
+    saveState();
+    renderAll();
   });
 });
 
-btnClearDone.addEventListener("click", () => {
-  openModal({
-    title: "確認",
-    text: "完了ログを消しますか？",
-    okText: "消去",
-    onOk: () => {
-      getModeState().done = [];
-      saveState();
-      renderAll();
-    },
-  });
-});
-
-btnResetAll.addEventListener("click", () => {
-  openModal({
-    title: "最終確認",
-    text: "全データを初期化しますか？（運行表・完了ログ・タイマー全部）",
-    okText: "初期化",
-    onOk: () => {
-      state = defaultState();
-      saveState();
-      renderAll();
-    },
-  });
-});
-
+/* modal */
 modalCancel.addEventListener("click", closeModal);
 modalOk.addEventListener("click", () => {
   if (modalOk._onOk) modalOk._onOk();
@@ -220,18 +236,18 @@ modalOk.addEventListener("click", () => {
 });
 
 /* =========================
-   functions
+   State
 ========================= */
 function defaultState(){
   return {
-    mode: "study",
+    ui: { screen: "study" },
     study: { queue: [], done: [] },
     life:  { queue: [], done: [] },
     run: {
-      currentId: null,
+      line: "study",        // 実行対象：study/life
       isRunning: false,
-      endAt: null,
-      remainingOnPauseMs: null,
+      endAt: null,          // running時のみ
+      remainingMs: null,    // pause時に固定
       notifiedZero: false,
     }
   };
@@ -241,15 +257,14 @@ function loadState(){
   try{
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return defaultState();
-    const parsed = JSON.parse(raw);
-
-    // マイグレーション対策
+    const p = JSON.parse(raw);
     return {
       ...defaultState(),
-      ...parsed,
-      study: { ...defaultState().study, ...(parsed.study||{}) },
-      life:  { ...defaultState().life,  ...(parsed.life||{}) },
-      run:   { ...defaultState().run,   ...(parsed.run||{}) },
+      ...p,
+      ui: { ...defaultState().ui, ...(p.ui||{}) },
+      study: { ...defaultState().study, ...(p.study||{}) },
+      life:  { ...defaultState().life,  ...(p.life||{}) },
+      run:   { ...defaultState().run,   ...(p.run||{}) },
     };
   }catch{
     return defaultState();
@@ -260,56 +275,44 @@ function saveState(){
   localStorage.setItem(LS_KEY, JSON.stringify(state));
 }
 
-function getModeState(){
-  return state.mode === "study" ? state.study : state.life;
-}
-
-function setMode(mode){
-  state.mode = mode;
-
-  tabs.forEach(t => t.classList.toggle("is-active", t.dataset.mode === mode));
-  tabs.forEach(t => t.setAttribute("aria-selected", t.dataset.mode === mode ? "true" : "false"));
-
-  // タイマーはモードごとに共通運転（=今見てる線の先頭を運転）
-  // なので mode切り替え時は currentId をその線の先頭に合わせる（実運用っぽく）
-  const ms = getModeState();
-  if (ms.queue.length === 0) {
-    state.run.currentId = null;
-    stopRun();
-  } else {
-    state.run.currentId = ms.queue[0].id;
-    stopRun(); // モード切り替え=運転リセット
-  }
-
+function resetAll(){
+  state = defaultState();
   saveState();
   renderAll();
 }
 
-function stopRun(){
-  state.run.isRunning = false;
-  state.run.endAt = null;
-  state.run.remainingOnPauseMs = null;
-  state.run.notifiedZero = false;
+/* =========================
+   UI: screen
+========================= */
+function setScreen(screen){
+  state.ui.screen = screen;
+  saveState();
+
+  navBtns.forEach(b => b.classList.toggle("is-active", b.dataset.screen === screen));
+  Object.entries(screens).forEach(([k, el]) => el.classList.toggle("is-active", k === screen));
+
+  renderAll();
 }
 
+/* =========================
+   Study selects
+========================= */
 function initCategorySelect(){
-  // options
-  const cats = Object.keys(STUDY_MAP);
   studyCategory.innerHTML = "";
-  cats.forEach(c => {
+  Object.keys(SUBJECTS_BY_CATEGORY).forEach(cat => {
     const opt = document.createElement("option");
-    opt.value = c;
-    opt.textContent = c;
+    opt.value = cat;
+    opt.textContent = cat;
     studyCategory.appendChild(opt);
   });
-
-  // 前回選択があれば復元っぽく（mode依存しない簡易）
+  // 初期は数学系（好みなら変えてOK）
   studyCategory.value = "数学系";
 }
 
-function syncSubjectSelect(){
+function syncStudySubjectSelect(){
   const cat = studyCategory.value;
-  const subs = STUDY_MAP[cat] || [];
+  const subs = SUBJECTS_BY_CATEGORY[cat] || [];
+
   studySubject.innerHTML = "";
   subs.forEach(s => {
     const opt = document.createElement("option");
@@ -318,56 +321,114 @@ function syncSubjectSelect(){
     studySubject.appendChild(opt);
   });
 
-  const isOther = isOtherSelected();
-  studyOtherWrap.hidden = !isOther;
-}
+  // 「系→科目」の順を強制：系が決まれば科目は有効化
+  studySubject.disabled = false;
 
-function isOtherSelected(){
-  return studyCategory.value === "その他" && studySubject.value === "（自由入力）";
-}
+  // その他系なら入力欄表示
+  const isOther = (cat === "その他");
+  studyOtherSubjectWrap.hidden = !isOther;
 
-function syncTimeModeUI(kind){
-  if (kind === "study"){
-    const mode = getRadioValue("studyTimeMode");
-    studyDurationWrap.hidden = mode !== "duration";
-    studyUntilWrap.hidden = mode !== "until";
-  } else {
-    const mode = getRadioValue("lifeTimeMode");
-    lifeDurationWrap.hidden = mode !== "duration";
-    lifeUntilWrap.hidden = mode !== "until";
+  // その他系は科目が（入力）固定でもOK
+  if (isOther) {
+    studySubject.value = "（入力）";
   }
 }
 
-function addRangeRow(prefill){
+function resolveStudySubject(){
+  const cat = studyCategory.value;
+  if (cat !== "その他") return studySubject.value;
+
+  const v = (studyOtherSubject.value || "").trim();
+  return v ? v : "その他";
+}
+
+function syncStudyTaskSelect(){
+  const subject = resolveStudySubject();
+  const cat = studyCategory.value;
+
+  // 科目が未確定（その他系で未入力でも一応選べるように）
+  // → subjectが"その他"でもOK
+
+  // タスク内容候補
+  let opts = TASK_OPTIONS_BY_SUBJECT[subject];
+  if (!opts) {
+    // その他：上の選択肢全部＋自由入力
+    opts = ALL_TASK_OPTIONS.slice();
+    // 教科書が先頭に来るように整形
+    opts = uniq(["教科書", ...opts.filter(x => x !== "教科書")]);
+  }
+
+  studyTaskType.innerHTML = "";
+  opts.forEach(o => {
+    const opt = document.createElement("option");
+    opt.value = o;
+    opt.textContent = o;
+    studyTaskType.appendChild(opt);
+  });
+
+  // 科目→タスク内容 の順：科目が選ばれていれば有効化
+  studyTaskType.disabled = false;
+
+  // 自由入力表示
+  studyTaskFreeWrap.hidden = (studyTaskType.value !== "自由入力");
+}
+
+/* =========================
+   Time mode UI
+========================= */
+function syncTimeModeUI(kind){
+  if (kind === "study"){
+    const mode = radioValue("studyTimeMode");
+    studyDurationWrap.hidden = (mode !== "duration");
+    studyUntilWrap.hidden = (mode !== "until");
+
+    // required切替
+    studyDurationMin.required = (mode === "duration");
+    studyUntilTime.required = (mode === "until");
+  } else {
+    const mode = radioValue("lifeTimeMode");
+    lifeDurationWrap.hidden = (mode !== "duration");
+    lifeUntilWrap.hidden = (mode !== "until");
+
+    lifeDurationMin.required = (mode === "duration");
+    lifeUntilTime.required = (mode === "until");
+  }
+}
+
+/* =========================
+   Ranges (start/end only)
+========================= */
+function ensureAtLeastOneRangeRow(container){
+  if (container.querySelectorAll(".rangeRow").length === 0){
+    addRangeRow(container);
+  }
+}
+
+function addRangeRow(container, prefill){
   const row = document.createElement("div");
   row.className = "rangeRow";
-
   row.innerHTML = `
-    <select class="rangeType">
-      <option value="page">ページ</option>
-      <option value="prob">問題</option>
-    </select>
-    <input class="rangeStart" type="text" placeholder="開始 (例 12 / 3)" />
-    <input class="rangeEnd" type="text" placeholder="終了 (例 18 / 10)" />
+    <input class="rangeStart" type="text" placeholder="開始（例：12 / 3）" />
+    <input class="rangeEnd" type="text" placeholder="終了（例：18 / 10）" />
     <button type="button" class="rangeDel">×</button>
   `;
-
   const del = row.querySelector(".rangeDel");
-  del.addEventListener("click", () => row.remove());
+  del.addEventListener("click", () => {
+    row.remove();
+    ensureAtLeastOneRangeRow(container);
+  });
 
   if (prefill){
-    row.querySelector(".rangeType").value = prefill.type || "page";
     row.querySelector(".rangeStart").value = prefill.start || "";
     row.querySelector(".rangeEnd").value = prefill.end || "";
   }
 
-  rangesList.appendChild(row);
+  container.appendChild(row);
 }
 
-function readRangesFromUI(){
-  const rows = Array.from(rangesList.querySelectorAll(".rangeRow"));
+function readRanges(container){
+  const rows = Array.from(container.querySelectorAll(".rangeRow"));
   const ranges = rows.map(r => ({
-    type: r.querySelector(".rangeType").value,
     start: (r.querySelector(".rangeStart").value || "").trim(),
     end: (r.querySelector(".rangeEnd").value || "").trim(),
   })).filter(x => x.start || x.end);
@@ -375,55 +436,60 @@ function readRangesFromUI(){
   return ranges;
 }
 
-function addStudyTaskFromForm(){
+/* =========================
+   Add tasks
+========================= */
+function addStudyTask(){
   const cat = studyCategory.value;
-  let subj = studySubject.value;
+  const subject = resolveStudySubject();
+  const taskType = studyTaskType.value;
+  const free = (studyTaskFree.value || "").trim();
+  const finalTaskType = (taskType === "自由入力") ? (free || "自由入力") : taskType;
 
-  if (isOtherSelected()){
-    const other = (studyOtherSubject.value || "").trim();
-    subj = other ? other : "その他";
+  const mode = radioValue("studyTimeMode");
+  if (!mode) {
+    alert("時間か時刻を選んでください");
+    return;
   }
 
-  const task = (studyTask.value || "").trim();
-  const ranges = readRangesFromUI();
-
-  const timeMode = getRadioValue("studyTimeMode");
-  const timeSpec = readTimeSpec(timeMode, studyDurationMin.value, studyUntilTime.value);
+  const timeSpec = readTimeSpec(mode, studyDurationMin.value, studyUntilTime.value);
+  const ranges = readRanges(studyRangesList);
 
   const t = {
     id: uid(),
     kind: "study",
     category: cat,
-    subject: subj,
+    subject,
     color: COLORS[cat] || COLORS["その他"],
-    task,
+    taskType: finalTaskType,
     ranges,
-    timeMode,
-    timeSpec, // {mode, durationMin? , untilHHMM?}
+    timeSpec,
     createdAt: Date.now(),
   };
 
   state.study.queue.push(t);
 
-  // 先頭が未運転なら currentId を合わせる
-  if (state.mode === "study" && !state.run.currentId){
-    state.run.currentId = t.id;
-  }
+  // 入力の軽い初期化
+  studyTaskFree.value = "";
+  studyTaskFreeWrap.hidden = true;
 
-  // フォーム軽く初期化（範囲は残す/消す好みがあるので一旦消す）
-  studyTask.value = "";
-  rangesList.innerHTML = "";
-  addRangeRow();
+  // 範囲は1行残す（リセット）
+  studyRangesList.innerHTML = "";
+  addRangeRow(studyRangesList);
 
   saveState();
   renderAll();
 }
 
-function addLifeTaskFromForm(){
+function addLifeTask(){
   const task = (lifeTask.value || "").trim();
+  const mode = radioValue("lifeTimeMode");
+  if (!mode) {
+    alert("時間か時刻を選んでください");
+    return;
+  }
 
-  const timeMode = getRadioValue("lifeTimeMode");
-  const timeSpec = readTimeSpec(timeMode, lifeDurationMin.value, lifeUntilTime.value);
+  const timeSpec = readTimeSpec(mode, lifeDurationMin.value, lifeUntilTime.value);
 
   const t = {
     id: uid(),
@@ -431,19 +497,13 @@ function addLifeTaskFromForm(){
     category: "その他",
     subject: "生活",
     color: COLORS["その他"],
-    task,
+    task: task,
     ranges: [],
-    timeMode,
     timeSpec,
     createdAt: Date.now(),
   };
 
   state.life.queue.push(t);
-
-  if (state.mode === "life" && !state.run.currentId){
-    state.run.currentId = t.id;
-  }
-
   lifeTask.value = "";
 
   saveState();
@@ -455,343 +515,368 @@ function readTimeSpec(mode, durationMinRaw, untilHHMM){
     const d = Math.max(1, parseInt(durationMinRaw || "1", 10));
     return { mode, durationMin: d };
   }
-  // until
-  const hhmm = (untilHHMM || "").trim();
-  return { mode, untilHHMM: hhmm };
+  return { mode, untilHHMM: (untilHHMM || "").trim() };
 }
 
-function computeEndAtFromTask(task){
-  const now = new Date();
-  if (task.timeSpec.mode === "duration"){
-    const ms = task.timeSpec.durationMin * 60 * 1000;
-    return Date.now() + ms;
+/* =========================
+   Render
+========================= */
+function renderAll(){
+  // screen
+  setScreenInternal(state.ui.screen);
+
+  renderQueues();
+  renderDone();
+
+  // run UI
+  renderRunLinePick();
+  renderDriver();
+}
+
+function setScreenInternal(screen){
+  navBtns.forEach(b => b.classList.toggle("is-active", b.dataset.screen === screen));
+  Object.entries(screens).forEach(([k, el]) => el.classList.toggle("is-active", k === screen));
+}
+
+function renderQueues(){
+  renderQueueList(studyQueueEl, state.study.queue, "study");
+  renderQueueList(lifeQueueEl, state.life.queue, "life");
+}
+
+function renderQueueList(el, queue, line){
+  el.innerHTML = "";
+  if (queue.length === 0){
+    el.appendChild(emptyLi("（空です）"));
+    return;
   }
 
-  // until HH:MM
-  const hhmm = task.timeSpec.untilHHMM;
+  queue.forEach((t, idx) => {
+    const li = document.createElement("li");
+    li.className = "item";
+    li.style.borderLeftColor = (t.color || css("--gray"));
+
+    const main = document.createElement("div");
+    main.className = "item__main";
+
+    const title = document.createElement("div");
+    title.className = "item__title";
+    title.textContent = (line === "study")
+      ? `${t.subject}｜${t.taskType}`
+      : `生活｜${t.task}`;
+
+    const meta = document.createElement("div");
+    meta.className = "item__meta";
+    meta.textContent = timeSpecText(t.timeSpec);
+
+    main.appendChild(title);
+    main.appendChild(meta);
+
+    const btns = document.createElement("div");
+    btns.className = "item__btns";
+    btns.appendChild(miniBtn("↑", () => moveTask(line, t.id, -1)));
+    btns.appendChild(miniBtn("↓", () => moveTask(line, t.id, +1)));
+    btns.appendChild(miniBtn("削", () => deleteTask(line, t.id)));
+
+    li.appendChild(main);
+    li.appendChild(btns);
+    el.appendChild(li);
+  });
+}
+
+function renderDone(){
+  renderDoneList(studyDoneEl, state.study.done, "study");
+  renderDoneList(lifeDoneEl, state.life.done, "life");
+}
+
+function renderDoneList(el, done, line){
+  el.innerHTML = "";
+  if (done.length === 0){
+    el.appendChild(emptyLi("（まだありません）"));
+    return;
+  }
+
+  done.slice(0, 30).forEach(t => {
+    const li = document.createElement("li");
+    li.className = "item";
+    li.style.borderLeftColor = (t.color || css("--gray"));
+
+    const main = document.createElement("div");
+    main.className = "item__main";
+
+    const title = document.createElement("div");
+    title.className = "item__title";
+    const txt = (line === "study")
+      ? `${fmtHHMM(new Date(t.completedAt))}  ${t.subject}｜${t.taskType}`
+      : `${fmtHHMM(new Date(t.completedAt))}  生活｜${t.task}`;
+    title.textContent = txt;
+
+    main.appendChild(title);
+    li.appendChild(main);
+    el.appendChild(li);
+  });
+}
+
+/* =========================
+   Queue operations
+========================= */
+function getLineState(line){
+  return (line === "study") ? state.study : state.life;
+}
+
+function deleteTask(line, id){
+  const ls = getLineState(line);
+  ls.queue = ls.queue.filter(t => t.id !== id);
+
+  // 実行中のタスクを消した場合は安全に停止
+  if (state.run.line === line) {
+    stopRunTimer();
+  }
+
+  saveState();
+  renderAll();
+}
+
+function moveTask(line, id, dir){
+  const ls = getLineState(line);
+  const i = ls.queue.findIndex(t => t.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= ls.queue.length) return;
+
+  const tmp = ls.queue[i];
+  ls.queue[i] = ls.queue[j];
+  ls.queue[j] = tmp;
+
+  // 並び替えたら実行タイマーは止める（ズレ防止）
+  if (state.run.line === line) stopRunTimer();
+
+  saveState();
+  renderAll();
+}
+
+/* =========================
+   Run logic (pause freezes)
+========================= */
+function setRunLine(line){
+  if (state.run.line === line) return;
+  state.run.line = line;
+
+  // 切替は運転リセット
+  stopRunTimer();
+
+  saveState();
+  renderAll();
+}
+
+function renderRunLinePick(){
+  pickStudy.classList.toggle("is-active", state.run.line === "study");
+  pickLife.classList.toggle("is-active", state.run.line === "life");
+}
+
+function getRunQueue(){
+  return (state.run.line === "study") ? state.study.queue : state.life.queue;
+}
+
+function getRunDone(){
+  return (state.run.line === "study") ? state.study.done : state.life.done;
+}
+
+function getRunCurrentTask(){
+  const q = getRunQueue();
+  if (q.length === 0) return null;
+  return q[0]; // 常に先頭を運転
+}
+
+function toggleStartPause(){
+  const cur = getRunCurrentTask();
+  if (!cur) return;
+
+  if (!state.run.isRunning) {
+    // 発車 or 再発車
+    if (state.run.remainingMs != null) {
+      // 再発車
+      state.run.endAt = Date.now() + state.run.remainingMs;
+      state.run.remainingMs = null;
+    } else {
+      // 初回発車
+      state.run.endAt = computeEndAt(cur);
+    }
+    state.run.isRunning = true;
+    state.run.notifiedZero = false;
+  } else {
+    // 一時停止：残りを固定して endAt を捨てる
+    const remain = Math.max(0, (state.run.endAt || Date.now()) - Date.now());
+    state.run.remainingMs = remain;
+    state.run.endAt = null;
+    state.run.isRunning = false;
+  }
+
+  saveState();
+  renderAll();
+}
+
+function stopRunTimer(){
+  state.run.isRunning = false;
+  state.run.endAt = null;
+  state.run.remainingMs = null;
+  state.run.notifiedZero = false;
+}
+
+function computeEndAt(task){
+  const ts = task.timeSpec;
+  const now = new Date();
+
+  if (ts.mode === "duration"){
+    return Date.now() + (ts.durationMin * 60 * 1000);
+  }
+
+  // until
+  const hhmm = ts.untilHHMM;
   if (!hhmm){
-    // 未入力ならデフォで30分
     return Date.now() + 30*60*1000;
   }
-  const [hh, mm] = hhmm.split(":").map(x => parseInt(x,10));
+  const [hh, mm] = hhmm.split(":").map(n => parseInt(n, 10));
   const end = new Date(now);
   end.setHours(hh, mm, 0, 0);
-
-  // もし過去なら翌日に回す（「次の日まで」運用）
   if (end.getTime() <= now.getTime()){
     end.setDate(end.getDate() + 1);
   }
   return end.getTime();
 }
 
-function getCurrentTask(){
-  const ms = getModeState();
-  if (ms.queue.length === 0) return null;
-
-  // currentId が無ければ先頭
-  if (!state.run.currentId) {
-    state.run.currentId = ms.queue[0].id;
-    saveState();
-  }
-
-  const found = ms.queue.find(t => t.id === state.run.currentId);
-  return found || ms.queue[0];
-}
-
-function completeCurrentTask(){
-  const ms = getModeState();
-  const cur = getCurrentTask();
+function completeRunTask(){
+  const cur = getRunCurrentTask();
   if (!cur) return;
 
-  // doneへ
-  ms.done.unshift({
-    ...cur,
-    completedAt: Date.now(),
-  });
+  const ls = getLineState(state.run.line);
+  ls.done.unshift({ ...cur, completedAt: Date.now() });
+  ls.queue.shift(); // remove first
 
-  // queueから削除
-  ms.queue = ms.queue.filter(t => t.id !== cur.id);
-
-  // 次へ
-  if (ms.queue.length > 0){
-    state.run.currentId = ms.queue[0].id;
-  } else {
-    state.run.currentId = null;
-  }
-
-  stopRun();
+  stopRunTimer();
   saveState();
   renderAll();
 }
 
-function skipCurrentTask(){
-  const ms = getModeState();
-  const cur = getCurrentTask();
-  if (!cur) return;
+function skipRunTask(){
+  const ls = getLineState(state.run.line);
+  if (ls.queue.length === 0) return;
 
-  // 先頭にいる想定で、先頭を末尾へ送る（運行っぽく）
-  const idx = ms.queue.findIndex(t => t.id === cur.id);
-  if (idx >= 0){
-    const [x] = ms.queue.splice(idx, 1);
-    ms.queue.push(x);
-  }
+  // 先頭を末尾へ
+  const first = ls.queue.shift();
+  ls.queue.push(first);
 
-  // 次は先頭
-  if (ms.queue.length > 0){
-    state.run.currentId = ms.queue[0].id;
-  } else {
-    state.run.currentId = null;
-  }
-
-  stopRun();
+  stopRunTimer();
   saveState();
   renderAll();
-}
-
-function deleteTask(id){
-  const ms = getModeState();
-  ms.queue = ms.queue.filter(t => t.id !== id);
-  if (state.run.currentId === id){
-    state.run.currentId = ms.queue[0]?.id || null;
-    stopRun();
-  }
-  saveState();
-  renderAll();
-}
-
-function moveTask(id, dir){
-  const ms = getModeState();
-  const i = ms.queue.findIndex(t => t.id === id);
-  if (i < 0) return;
-  const j = i + dir;
-  if (j < 0 || j >= ms.queue.length) return;
-  const tmp = ms.queue[i];
-  ms.queue[i] = ms.queue[j];
-  ms.queue[j] = tmp;
-
-  // 先頭が変わったらcurrentIdも合わせる（運転士っぽい）
-  state.run.currentId = ms.queue[0].id;
-  stopRun();
-
-  saveState();
-  renderAll();
-}
-
-function renderAll(){
-  // mode UI
-  tabs.forEach(t => t.classList.toggle("is-active", t.dataset.mode === state.mode));
-  nowLineName.textContent = state.mode === "study" ? "STUDY LINE" : "LIFE LINE";
-  formTitle.textContent = state.mode === "study" ? "新規タスク（勉強）" : "新規タスク（生活）";
-  studyForm.hidden = state.mode !== "study";
-  lifeForm.hidden = state.mode !== "life";
-
-  // 色（現在タスク基準）
-  const cur = getCurrentTask();
-  applyAccent(cur?.color || COLORS["その他"]);
-
-  // 運行表
-  renderQueue();
-
-  // 完了ログ
-  renderDone();
-
-  // 運転席
-  renderDriver();
-
-  // 走行状態
-  renderRunState();
-}
-
-function renderQueue(){
-  const ms = getModeState();
-  queueList.innerHTML = "";
-
-  if (ms.queue.length === 0){
-    const li = document.createElement("li");
-    li.style.color = "rgba(255,255,255,.65)";
-    li.style.fontWeight = "900";
-    li.style.padding = "10px";
-    li.textContent = "（運行表は空です）";
-    queueList.appendChild(li);
-    return;
-  }
-
-  ms.queue.forEach((t, idx) => {
-    const li = document.createElement("li");
-    li.className = "queueItem";
-    li.style.setProperty("--accent", t.color);
-
-    const main = document.createElement("div");
-    main.className = "queueItem__main";
-
-    const title = document.createElement("div");
-    title.className = "queueItem__title";
-    title.textContent = `${idx===0 ? "▶ " : ""}${formatTaskShort(t)}`;
-
-    const meta = document.createElement("div");
-    meta.className = "queueItem__meta";
-    meta.textContent = formatTimeSpec(t.timeSpec);
-
-    main.appendChild(title);
-    main.appendChild(meta);
-
-    const btns = document.createElement("div");
-    btns.className = "queueItem__btns";
-
-    const up = mkMiniBtn("↑", () => moveTask(t.id, -1));
-    const down = mkMiniBtn("↓", () => moveTask(t.id, +1));
-    const del = mkMiniBtn("削", () => deleteTask(t.id));
-
-    // 先頭だけ強調（シンプル）
-    if (idx === 0){
-      li.style.borderLeftColor = t.color;
-      li.style.boxShadow = `0 0 0 2px rgba(255,255,255,.05) inset`;
-    }
-
-    btns.appendChild(up);
-    btns.appendChild(down);
-    btns.appendChild(del);
-
-    li.appendChild(main);
-    li.appendChild(btns);
-
-    queueList.appendChild(li);
-  });
-}
-
-function renderDone(){
-  const ms = getModeState();
-  doneList.innerHTML = "";
-  if (ms.done.length === 0){
-    const li = document.createElement("li");
-    li.textContent = "（まだありません）";
-    li.style.color = "rgba(255,255,255,.65)";
-    li.style.fontWeight = "900";
-    li.style.padding = "10px";
-    doneList.appendChild(li);
-    return;
-  }
-
-  ms.done.slice(0, 30).forEach(t => {
-    const li = document.createElement("li");
-    li.textContent = `${formatHHMM(new Date(t.completedAt))}  ${formatTaskShort(t)}`;
-    doneList.appendChild(li);
-  });
 }
 
 function renderDriver(){
-  const ms = getModeState();
-  const cur = getCurrentTask();
+  const cur = getRunCurrentTask();
+  const color = cur?.color || css("--gray");
+  applyAccent(color);
 
   if (!cur){
     nowSubject.textContent = "—";
-    nowTaskTitle.textContent = "待機中";
-    nowTaskDetail.textContent = "運行表にタスクを追加してください";
+    nowTitle.textContent = "待機中";
+    nowSub.textContent = "運行表にタスクを追加してください";
+    nowRangesWrap.hidden = true;
     timerText.textContent = "--:--";
     timerMeta.textContent = "";
-    nowRanges.hidden = true;
     nextPreview.textContent = "—";
-    return;
-  }
-
-  nowSubject.textContent = (cur.kind === "study") ? cur.subject : "生活";
-  nowTaskTitle.textContent = cur.kind === "study" ? cur.task : cur.task;
-  nowTaskDetail.textContent =
-    cur.kind === "study"
-      ? `${cur.category} / ${cur.subject}`
-      : `生活タスク`;
-
-  // 範囲
-  if (cur.kind === "study" && cur.ranges && cur.ranges.length > 0){
-    nowRanges.hidden = false;
-    nowRangesList.innerHTML = "";
-    cur.ranges.forEach(r => {
-      const li = document.createElement("li");
-      li.textContent = formatRange(r);
-      nowRangesList.appendChild(li);
-    });
-  } else {
-    nowRanges.hidden = true;
-  }
-
-  // 次タスク
-  if (ms.queue.length >= 2){
-    nextPreview.textContent = formatTaskShort(ms.queue[1]);
-  } else {
-    nextPreview.textContent = "—";
-  }
-
-  // タイマー表示
-  updateTimerUI();
-}
-
-function renderRunState(){
-  const cur = getCurrentTask();
-  const hasTask = !!cur;
-
-  if (!hasTask){
-    runStatePill.textContent = "待機";
     btnStartPause.textContent = "発車";
     return;
   }
 
-  if (state.run.isRunning){
-    runStatePill.textContent = "走行中";
-    btnStartPause.textContent = "一時停止";
+  if (cur.kind === "study"){
+    nowSubject.textContent = cur.subject;
+    nowTitle.textContent = cur.taskType;
+    nowSub.textContent = cur.category;
   } else {
-    // endAtがあるなら停止（残あり）
-    runStatePill.textContent = state.run.endAt ? "停止中" : "準備";
-    btnStartPause.textContent = state.run.endAt ? "再発車" : "発車";
+    nowSubject.textContent = "生活";
+    nowTitle.textContent = cur.task;
+    nowSub.textContent = "生活";
   }
+
+  // ranges
+  if (cur.kind === "study" && cur.ranges && cur.ranges.length > 0){
+    nowRangesWrap.hidden = false;
+    nowRanges.innerHTML = "";
+    cur.ranges.forEach(r => {
+      const li = document.createElement("li");
+      li.textContent = rangeText(r);
+      nowRanges.appendChild(li);
+    });
+  } else {
+    nowRangesWrap.hidden = true;
+  }
+
+  // next preview
+  const q = getRunQueue();
+  if (q.length >= 2){
+    nextPreview.textContent = taskShort(q[1]);
+  } else {
+    nextPreview.textContent = "—";
+  }
+
+  // start/pause label
+  btnStartPause.textContent = state.run.isRunning ? "一時停止" : "発車";
+
+  updateTimerUI();
 }
 
+/* =========================
+   Timer update
+========================= */
 function updateTimerUI(){
-  const cur = getCurrentTask();
+  const cur = getRunCurrentTask();
   if (!cur){
     timerText.textContent = "--:--";
     timerMeta.textContent = "";
     return;
   }
 
-  // endAtが未設定なら表示は時間仕様だけ
-  if (!state.run.endAt){
-    timerText.textContent = formatPlannedTime(cur.timeSpec);
-    timerMeta.textContent = "未発車";
+  // running
+  if (state.run.isRunning && state.run.endAt){
+    const remain = Math.max(0, state.run.endAt - Date.now());
+    timerText.textContent = fmtMMSS(remain);
+    timerMeta.textContent = `到着 ${fmtHHMM(new Date(state.run.endAt))}`;
+
+    if (remain === 0 && !state.run.notifiedZero){
+      state.run.notifiedZero = true;
+      state.run.isRunning = false;
+      state.run.endAt = null;
+      state.run.remainingMs = 0;
+      saveState();
+
+      confirmModal(
+        "到着",
+        `「${taskShort(cur)}」の時間が終了しました。完了にしますか？`,
+        "到着",
+        () => completeRunTask()
+      );
+    }
     return;
   }
 
-  const now = Date.now();
-  const remain = Math.max(0, state.run.endAt - now);
-  timerText.textContent = formatMMSS(remain);
-
-  // meta: 到着予定（時計）
-  const end = new Date(state.run.endAt);
-  timerMeta.textContent = `到着 ${formatHHMM(end)}`;
-
-  if (remain === 0){
-    // 0到達通知（1回だけ）
-    if (!state.run.notifiedZero){
-      state.run.notifiedZero = true;
-      state.run.isRunning = false;
-      saveState();
-
-      openModal({
-        title: "到着",
-        text: `「${formatTaskShort(cur)}」の時間が終了しました。完了にして次へ進みますか？`,
-        okText: "到着（完了）",
-        onOk: () => completeCurrentTask(),
-      });
-    }
+  // paused (freeze)
+  if (!state.run.isRunning && state.run.remainingMs != null){
+    timerText.textContent = fmtMMSS(state.run.remainingMs);
+    timerMeta.textContent = "停止中";
+    return;
   }
+
+  // not started yet
+  timerText.textContent = plannedTimeText(cur.timeSpec);
+  timerMeta.textContent = "未発車";
 }
 
-function startTickLoop(){
-  if (tickTimer) clearInterval(tickTimer);
-  tickTimer = setInterval(() => {
-    if (state.run.isRunning && state.run.endAt){
-      updateTimerUI();
-    } else {
-      // 走行してなくてもUIを軽く更新（表示だけ）
+/* =========================
+   Tick/Clock
+========================= */
+function startTick(){
+  if (tickHandle) clearInterval(tickHandle);
+  tickHandle = setInterval(() => {
+    // running中だけ残りを更新（停止中は固定表示）
+    if (state.run.isRunning) {
       updateTimerUI();
     }
   }, 250);
@@ -799,96 +884,125 @@ function startTickLoop(){
 
 function startClock(){
   const tick = () => {
-    const d = new Date();
-    clockText.textContent = formatHHMM(d);
+    clockText.textContent = fmtHHMM(new Date());
   };
   tick();
   setInterval(tick, 1000);
 }
 
-/* ---------- modal ---------- */
-function openModal({title, text, okText="OK", onOk}){
+/* =========================
+   Modal helpers
+========================= */
+function confirmModal(title, text, okText, onOk){
   modalTitle.textContent = title;
   modalText.textContent = text;
-  modalOk.textContent = okText;
+  modalOk.textContent = okText || "OK";
   modalOk._onOk = onOk;
   modal.hidden = false;
 }
+
 function closeModal(){
   modal.hidden = true;
   modalOk._onOk = null;
 }
 
-/* ---------- helpers ---------- */
-function uid(){
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
-
-function mkMiniBtn(txt, onClick){
-  const b = document.createElement("button");
-  b.className = "btn btn--ghost";
-  b.style.padding = "10px 12px";
-  b.style.borderRadius = "14px";
-  b.style.fontSize = "12px";
-  b.textContent = txt;
-  b.addEventListener("click", onClick);
-  return b;
-}
-
-function formatTaskShort(t){
-  if (t.kind === "study"){
-    return `${t.subject}｜${t.task}`;
-  }
+/* =========================
+   Text helpers
+========================= */
+function taskShort(t){
+  if (t.kind === "study") return `${t.subject}｜${t.taskType}`;
   return `生活｜${t.task}`;
 }
 
-function formatRange(r){
-  const label = r.type === "prob" ? "問" : "p";
+function rangeText(r){
   const a = r.start || "";
   const b = r.end || "";
-  if (a && b) return `${label}${a}–${b}`;
-  if (a) return `${label}${a}～`;
-  if (b) return `～${label}${b}`;
+  if (a && b) return `${a}–${b}`;
+  if (a) return `${a}～`;
+  if (b) return `～${b}`;
   return "（範囲）";
 }
 
-function formatTimeSpec(ts){
-  if (ts.mode === "duration"){
-    return `所要 ${ts.durationMin}分`;
-  }
-  return `～ ${ts.untilHHMM || "（未設定）"}`;
+function timeSpecText(ts){
+  if (ts.mode === "duration") return `所要 ${ts.durationMin}分`;
+  return `～ ${ts.untilHHMM || "未設定"}`;
 }
 
-function formatPlannedTime(ts){
-  // 未発車表示用
+function plannedTimeText(ts){
   if (ts.mode === "duration") return `${ts.durationMin}分`;
   return `～${ts.untilHHMM || "--:--"}`;
 }
 
-function formatMMSS(ms){
-  const totalSec = Math.ceil(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
+function fmtMMSS(ms){
+  const sec = Math.ceil(ms / 1000);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
   return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
 }
 
-function formatHHMM(d){
+function fmtHHMM(d){
   const hh = String(d.getHours()).padStart(2,"0");
   const mm = String(d.getMinutes()).padStart(2,"0");
   return `${hh}:${mm}`;
 }
 
-function getRadioValue(name){
+/* =========================
+   Utils
+========================= */
+function uid(){
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
+function miniBtn(text, onClick){
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "btn btn--ghost btn--mini";
+  b.textContent = text;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function emptyLi(text){
+  const li = document.createElement("li");
+  li.className = "item";
+  li.style.borderLeftColor = css("--gray");
+  const main = document.createElement("div");
+  main.className = "item__main";
+  const title = document.createElement("div");
+  title.className = "item__title";
+  title.textContent = text;
+  title.style.color = "rgba(255,255,255,.70)";
+  main.appendChild(title);
+  li.appendChild(main);
+  return li;
+}
+
+function radioValue(name){
   const el = document.querySelector(`input[name="${name}"]:checked`);
   return el ? el.value : null;
 }
 
-function applyAccent(color){
-  document.documentElement.style.setProperty("--accent", color);
-  // accent2 も薄く調整（色そのままは難しいので固定の透明度で）
-  // （ここはシンプルに：CSS側で--accent2はrgba固定でもOK）
+function css(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function getCssVar(name){
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-                       }
+function applyAccent(color){
+  document.documentElement.style.setProperty("--accent", color);
+  // 薄い色は固定透明度のまま使う（見やすさ優先）
+  document.documentElement.style.setProperty("--accentSoft", "rgba(255,255,255,.00)");
+  // accentSoftはCSS側のradialで使うが、ここは最小限にする
+  // ※簡易：背景は色味が変わるだけで十分
+}
+
+function uniq(arr){
+  const s = new Set();
+  const out = [];
+  for (const x of arr){
+    const k = String(x);
+    if (!s.has(k)){
+      s.add(k);
+      out.push(x);
+    }
+  }
+  return out;
+}
