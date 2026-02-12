@@ -383,6 +383,7 @@ input::placeholder{ color: rgba(159,176,200,.65); font-weight:700; }
   color: rgba(255,255,255,.82);
 }
 
+.modal[hidden]{ display: none !important; }
 .modal{
   position:fixed;
   inset:0;
@@ -416,4 +417,4 @@ input::placeholder{ color: rgba(159,176,200,.65); font-weight:700; }
   display:flex;
   justify-content:flex-end;
   gap:10px;
-    }
+}
