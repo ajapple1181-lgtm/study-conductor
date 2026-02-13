@@ -133,8 +133,13 @@ select:disabled, input:disabled{ opacity:.55; }
   grid-template-columns: 1fr 1fr;
   gap:10px;
 }
+
+/* 重要：ここは常に横並び */
+.grid2--always{ grid-template-columns: 1fr 1fr !important; }
+
 @media (max-width: 520px){
   .grid2{ grid-template-columns: 1fr; }
+  .grid2--always{ grid-template-columns: 1fr 1fr !important; }
 }
 
 /* boxed sections */
@@ -181,16 +186,19 @@ select:disabled, input:disabled{ opacity:.55; }
 
 /* ranges */
 .ranges{ display:flex; flex-direction:column; gap:8px; }
+
+/* 範囲：開始/終了を上下、×は右に縦長 */
 .rangeRow{
   display:grid;
-  grid-template-columns: 1fr 46px;     /* 入力欄 + × */
-  grid-template-rows: auto auto;       /* 開始・終了を上下 */
+  grid-template-columns: 1fr 46px;
+  grid-template-rows: auto auto;
   gap:8px;
   align-items:center;
 }
 .rangeRow .rangeStart{ grid-column: 1; grid-row: 1; }
 .rangeRow .rangeEnd{   grid-column: 1; grid-row: 2; }
 .rangeRow .rangeDel{   grid-column: 2; grid-row: 1 / span 2; align-self: stretch; }
+
 .rangeDel{
   width:46px; height:44px;
   border-radius:14px;
@@ -326,6 +334,12 @@ select:disabled, input:disabled{ opacity:.55; }
   border:1px solid rgba(255,255,255,.10);
   background: rgba(255,255,255,.03);
   font-weight:1000;
+  cursor:pointer;
+  user-select:none;
+}
+.driver__rangesList li.is-done{
+  text-decoration: line-through;
+  opacity: .55;
 }
 
 .timer{
@@ -376,7 +390,7 @@ select:disabled, input:disabled{ opacity:.55; }
 .next__label{ color:var(--muted); font-weight:1000; letter-spacing:.08em; font-size:12px; }
 .next__value{ margin-top:6px; font-weight:1000; }
 
-/* modal (hidden対策で絶対に出っぱなしにならない) */
+/* modal */
 .modal[hidden]{ display:none !important; }
 .modal{
   position:fixed;
