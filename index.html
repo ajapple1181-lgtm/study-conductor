@@ -4,8 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CONDUCTOR</title>
-  <!-- キャッシュ対策：?v=3 -->
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=5" />
 </head>
 <body>
   <header class="topbar">
@@ -27,20 +26,20 @@
 
   <main class="main">
 
-    <!-- 勉強設定 -->
-    <section class="screen is-active" id="screenStudy" aria-label="勉強設定">
+    <!-- 勉強 -->
+    <section class="screen is-active" id="screenStudy">
       <div class="card">
         <div class="card__title">新規タスク</div>
 
         <form id="studyForm" class="form">
           <label class="field">
             <span class="field__label">系</span>
-            <select id="studyCategory" required></select>
+            <select id="studyCategory"></select>
           </label>
 
           <label class="field">
             <span class="field__label">科目</span>
-            <select id="studySubject" required disabled></select>
+            <select id="studySubject" disabled></select>
           </label>
 
           <label class="field" id="studyOtherSubjectWrap" hidden>
@@ -50,7 +49,7 @@
 
           <label class="field">
             <span class="field__label">タスク内容</span>
-            <select id="studyTaskType" required disabled></select>
+            <select id="studyTaskType" disabled></select>
           </label>
 
           <label class="field" id="studyTaskFreeWrap" hidden>
@@ -72,15 +71,21 @@
               </label>
             </div>
 
-            <div class="grid2">
-              <label class="field" id="studyDurationWrap" hidden>
+            <div class="grid2" id="studyDurationWrap" hidden>
+              <label class="field">
                 <span class="field__label">分</span>
                 <input id="studyDurationMin" type="number" min="1" step="1" value="30" />
               </label>
+            </div>
 
-              <label class="field" id="studyUntilWrap" hidden>
-                <span class="field__label">まで</span>
-                <input id="studyUntilTime" type="time" />
+            <div class="grid2" id="studyUntilWrap" hidden>
+              <label class="field">
+                <span class="field__label">開始</span>
+                <input id="studyFromTime" type="time" />
+              </label>
+              <label class="field">
+                <span class="field__label">終了</span>
+                <input id="studyToTime" type="time" />
               </label>
             </div>
           </div>
@@ -114,15 +119,20 @@
       </div>
     </section>
 
-    <!-- 生活設定 -->
-    <section class="screen" id="screenLife" aria-label="生活設定">
+    <!-- 生活 -->
+    <section class="screen" id="screenLife">
       <div class="card">
         <div class="card__title">新規タスク</div>
 
         <form id="lifeForm" class="form">
           <label class="field">
             <span class="field__label">内容</span>
-            <input id="lifeTask" type="text" required placeholder="例：風呂、片付け、連絡…" />
+            <select id="lifeTaskType"></select>
+          </label>
+
+          <label class="field" id="lifeTaskFreeWrap" hidden>
+            <span class="field__label">内容（自由入力）</span>
+            <input id="lifeTaskFree" type="text" placeholder="例：片付け、連絡…" />
           </label>
 
           <div class="box">
@@ -139,15 +149,21 @@
               </label>
             </div>
 
-            <div class="grid2">
-              <label class="field" id="lifeDurationWrap" hidden>
+            <div class="grid2" id="lifeDurationWrap" hidden>
+              <label class="field">
                 <span class="field__label">分</span>
                 <input id="lifeDurationMin" type="number" min="1" step="1" value="15" />
               </label>
+            </div>
 
-              <label class="field" id="lifeUntilWrap" hidden>
-                <span class="field__label">まで</span>
-                <input id="lifeUntilTime" type="time" />
+            <div class="grid2" id="lifeUntilWrap" hidden>
+              <label class="field">
+                <span class="field__label">開始</span>
+                <input id="lifeFromTime" type="time" />
+              </label>
+              <label class="field">
+                <span class="field__label">終了</span>
+                <input id="lifeToTime" type="time" />
               </label>
             </div>
           </div>
@@ -174,7 +190,7 @@
     </section>
 
     <!-- 実行 -->
-    <section class="screen" id="screenRun" aria-label="実行">
+    <section class="screen" id="screenRun">
       <div class="card">
         <div class="card__head">
           <div class="card__title">運転席</div>
@@ -233,7 +249,6 @@
     </div>
   </div>
 
-  <!-- キャッシュ対策：?v=3 -->
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=5"></script>
 </body>
-  </html>
+                  </html>
