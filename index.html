@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CONDUCTOR</title>
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
   <header class="topbar">
@@ -27,7 +27,7 @@
   <main class="main">
 
     <!-- 勉強 -->
-    <section class="screen is-active" id="screenStudy">
+    <section class="screen is-active" id="screenStudy" aria-label="勉強設定">
       <div class="card">
         <div class="card__title">新規タスク</div>
 
@@ -78,7 +78,8 @@
               </label>
             </div>
 
-            <div class="grid2" id="studyUntilWrap" hidden>
+            <!-- ここだけ横並び固定 -->
+            <div class="grid2 grid2--always" id="studyUntilWrap" hidden>
               <label class="field">
                 <span class="field__label">開始</span>
                 <input id="studyFromTime" type="time" />
@@ -120,7 +121,7 @@
     </section>
 
     <!-- 生活 -->
-    <section class="screen" id="screenLife">
+    <section class="screen" id="screenLife" aria-label="生活設定">
       <div class="card">
         <div class="card__title">新規タスク</div>
 
@@ -156,7 +157,8 @@
               </label>
             </div>
 
-            <div class="grid2" id="lifeUntilWrap" hidden>
+            <!-- ここだけ横並び固定 -->
+            <div class="grid2 grid2--always" id="lifeUntilWrap" hidden>
               <label class="field">
                 <span class="field__label">開始</span>
                 <input id="lifeFromTime" type="time" />
@@ -190,7 +192,7 @@
     </section>
 
     <!-- 実行 -->
-    <section class="screen" id="screenRun">
+    <section class="screen" id="screenRun" aria-label="実行">
       <div class="card">
         <div class="card__head">
           <div class="card__title">運転席</div>
@@ -249,6 +251,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
-                  </html>
+        </html>
