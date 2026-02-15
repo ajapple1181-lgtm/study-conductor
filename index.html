@@ -159,11 +159,13 @@
               </label>
             </div>
 
+            <!-- ★ここに lifeAutoHint を追加（style.cssはそのままでOK） -->
             <div class="grid2" id="lifeDurationWrap" hidden>
               <label class="field">
                 <span class="field__label">分</span>
                 <input id="lifeDurationMin" type="number" min="1" step="1" value="15" />
               </label>
+              <div class="hint" id="lifeAutoHint" hidden>推奨: —</div>
             </div>
 
             <div class="grid2 grid2--always" id="lifeUntilWrap" hidden>
@@ -364,6 +366,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
-  </html>
+            </html>
