@@ -36,6 +36,18 @@ const TASK_OPTIONS_BY_SUBJECT = {
 const LIFE_OPTIONS = ["移動", "食事", "風呂", "準備", "就寝", "ラジオ", "テレビ", "爪切り", "散髪", "自由入力"];
 const ALL_TASK_OPTIONS = uniq([...Object.values(TASK_OPTIONS_BY_SUBJECT).flat(), "自由入力"]);
 
+/** ★生活の自動時間（分） */
+const LIFE_AUTO_MIN = {
+  "移動": 30,
+  "食事": 30,
+  "風呂": 60,
+  "準備": 15,
+  "ラジオ": 60,
+  "テレビ": 60,
+  "爪切り": 15,
+  "散髪": 60,
+};
+
 let state = loadState();
 
 /* ===== DOM ===== */
@@ -83,6 +95,7 @@ const lifeUntilWrap = $("#lifeUntilWrap");
 const lifeDurationMin = $("#lifeDurationMin");
 const lifeFromTime = $("#lifeFromTime");
 const lifeToTime = $("#lifeToTime");
+const lifeAutoHint = $("#lifeAutoHint"); // ★追加
 
 /* Lists */
 const studyQueueEl = $("#studyQueue");
@@ -163,6 +176,9 @@ let editCtx = null; // { line:"study"|"life", where:"queue"|"done", index:number
 let suppressStudyTouch = false;
 let studyDurationTouched = false;
 
+let suppressLifeTouch = false;   // ★追加
+let lifeDurationTouched = false; // ★追加
+
 let suppressEditTouch = false;
 let editDurationTouched = false;
 
@@ -238,11 +254,27 @@ studyForm.addEventListener("submit", (e) => {
 
 /* ===== Life events ===== */
 lifeTaskType.addEventListener("change", () => {
+  lifeDurationTouched = false;
   lifeTaskFreeWrap.hidden = (lifeTaskType.value !== "自由入力");
+  updateAutoDurationLifeForm();
 });
+
+lifeTaskFree.addEventListener("input", () => {
+  updateAutoDurationLifeForm();
+});
+
+lifeDurationMin.addEventListener("input", () => {
+  if (!suppressLifeTouch) lifeDurationTouched = true;
+});
+
 document.querySelectorAll('input[name="lifeTimeMode"]').forEach((r) => {
-  r.addEventListener("change", () => syncTimeModeUI("life"));
+  r.addEventListener("change", () => {
+    lifeDurationTouched = false;
+    syncTimeModeUI("life");
+    updateAutoDurationLifeForm();
+  });
 });
+
 lifeForm.addEventListener("submit", (e) => {
   e.preventDefault();
   addLifeTask();
@@ -332,7 +364,6 @@ nowRanges.addEventListener("click", (e) => {
   saveState();
   renderDriver();
 
-  // 全完了になった瞬間に到着ダイアログ
   const total = cur.rangeSteps?.length || 0;
   const done = cur.rangeDone.length;
   if (total > 0 && done === total){
@@ -377,7 +408,13 @@ editTaskType.addEventListener("change", () => {
 editTaskFree.addEventListener("input", () => updateAutoDurationEdit());
 
 editLifeTaskType.addEventListener("change", () => {
+  editDurationTouched = false;
   editLifeTaskFreeWrap.hidden = (editLifeTaskType.value !== "自由入力");
+  updateAutoDurationEdit();
+});
+editLifeTaskFree.addEventListener("input", () => {
+  editDurationTouched = false;
+  updateAutoDurationEdit();
 });
 
 editDurationMin.addEventListener("input", () => {
@@ -749,6 +786,39 @@ function updateAutoDurationStudyForm(){
   }
 }
 
+/* ===== 生活：フォームの自動時間（編集可能） ===== */
+function resolveLifeTaskOnForm(){
+  const raw = (lifeTaskType.value || "").trim();
+  if (!raw) return "";
+  if (raw !== "自由入力") return raw;
+  return (lifeTaskFree.value || "").trim();
+}
+
+function updateAutoDurationLifeForm(){
+  const mode = radioValue("lifeTimeMode");
+  if (mode !== "duration"){
+    lifeAutoHint.hidden = true;
+    return;
+  }
+
+  const task = resolveLifeTaskOnForm();
+  const auto = LIFE_AUTO_MIN[task];
+
+  if (auto == null){
+    lifeAutoHint.hidden = true;
+    return;
+  }
+
+  lifeAutoHint.hidden = false;
+  lifeAutoHint.textContent = `推奨: ${auto}分`;
+
+  if (!lifeDurationTouched){
+    suppressLifeTouch = true;
+    lifeDurationMin.value = String(auto);
+    suppressLifeTouch = false;
+  }
+}
+
 /* =========================
    Add tasks
 ========================= */
@@ -825,6 +895,9 @@ function addLifeTask(){
   lifeTaskFree.value = "";
   lifeTaskFreeWrap.hidden = true;
   lifeTaskType.value = "";
+
+  lifeDurationTouched = false;
+  updateAutoDurationLifeForm();
 
   saveState();
   renderAll();
@@ -1130,7 +1203,6 @@ function renderDriver(){
     nowSub.textContent = "生活";
   }
 
-  // ranges + progress
   if (cur.kind === "study" && cur.ranges && cur.ranges.length > 0){
     if (!cur.rangeSteps){
       cur.rangeSteps = computeRangeSteps(cur.ranges);
@@ -1251,7 +1323,6 @@ function openEdit(line, where, index){
   editWhere.textContent = `${line === "study" ? "勉強" : "生活"} / ${where === "queue" ? "運行表" : "完了ログ"}`;
   editTitle.textContent = "編集";
 
-  // reset time touched
   editDurationTouched = false;
 
   if (t.kind === "study"){
@@ -1264,13 +1335,13 @@ function openEdit(line, where, index){
     openEditLife(t);
   }
 
-  // time (common)
   const mode = t.timeSpec?.mode || "duration";
   setRadio("editTimeMode", mode);
   syncEditTimeModeUI();
 
   if (mode === "duration"){
     editDurationMin.value = String(t.timeSpec.durationMin || 30);
+    editDurationTouched = true; // ★開いた瞬間に勝手に自動上書きされないように
   } else {
     editFromTime.value = (t.timeSpec.fromHHMM || "");
     editToTime.value = (t.timeSpec.toHHMM || "");
@@ -1351,6 +1422,13 @@ function resolveEditTaskType(){
   return (editTaskFree.value || "").trim();
 }
 
+function resolveEditLifeTask(){
+  const raw = (editLifeTaskType.value || "").trim();
+  if (!raw) return "";
+  if (raw !== "自由入力") return raw;
+  return (editLifeTaskFree.value || "").trim();
+}
+
 function syncEditTaskSelect(existingTask){
   const subj = resolveEditSubject();
 
@@ -1400,30 +1478,49 @@ function updateAutoDurationEdit(){
     return;
   }
 
-  // 自動は勉強タスクのみ
-  if (t.kind !== "study"){
-    editAutoHint.hidden = true;
+  if (t.kind === "study"){
+    const subj = resolveEditSubject();
+    const taskType = resolveEditTaskType();
+    const ranges = readRanges(editRangesList);
+
+    const auto = computeAutoDurationMin(subj, taskType, ranges);
+    if (auto == null){
+      editAutoHint.hidden = true;
+      return;
+    }
+
+    editAutoHint.hidden = false;
+    editAutoHint.textContent = `推奨: ${auto}分`;
+
+    if (!editDurationTouched){
+      suppressEditTouch = true;
+      editDurationMin.value = String(auto);
+      suppressEditTouch = false;
+    }
     return;
   }
 
-  const subj = resolveEditSubject();
-  const taskType = resolveEditTaskType();
-  const ranges = readRanges(editRangesList);
+  if (t.kind === "life"){
+    const task = resolveEditLifeTask();
+    const auto = LIFE_AUTO_MIN[task];
 
-  const auto = computeAutoDurationMin(subj, taskType, ranges);
-  if (auto == null){
-    editAutoHint.hidden = true;
+    if (auto == null){
+      editAutoHint.hidden = true;
+      return;
+    }
+
+    editAutoHint.hidden = false;
+    editAutoHint.textContent = `推奨: ${auto}分`;
+
+    if (!editDurationTouched){
+      suppressEditTouch = true;
+      editDurationMin.value = String(auto);
+      suppressEditTouch = false;
+    }
     return;
   }
 
-  editAutoHint.hidden = false;
-  editAutoHint.textContent = `推奨: ${auto}分`;
-
-  if (!editDurationTouched){
-    suppressEditTouch = true;
-    editDurationMin.value = String(auto);
-    suppressEditTouch = false;
-  }
+  editAutoHint.hidden = true;
 }
 
 function saveEdit(){
@@ -1464,7 +1561,7 @@ function saveEdit(){
       taskType,
       ranges,
       rangeSteps,
-      rangeDone: [], // 範囲が変わったらリセット
+      rangeDone: [],
       timeSpec,
     });
 
@@ -1483,12 +1580,10 @@ function saveEdit(){
   saveState();
   renderAll();
   closeEditModal();
-                            }
+}
 
 /* =========================
    Share export/import
-   - 必ずコードを表示（prompt）
-   - 可能ならコピーもする
 ========================= */
 async function shareExport(){
   const portable = makePortableState();
@@ -1500,7 +1595,6 @@ async function shareExport(){
     // ignore
   }
 
-  // 必ず表示する（ここでユーザーが見える）
   prompt("共有コード（コピーして「共有読込」に貼り付け）", code);
 }
 
@@ -1682,4 +1776,4 @@ function toRgba(color, a){
     return `rgba(${r},${g},${b},${a})`;
   }
   return `rgba(255,255,255,${a})`;
-    }
+}
