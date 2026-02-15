@@ -32,6 +32,7 @@ body{
   display:flex;
   align-items:center;
   justify-content:space-between;
+  gap:10px;
   padding:14px 16px;
   border-bottom:1px solid var(--border);
   background: linear-gradient(180deg, rgba(15,21,32,.95), rgba(11,15,20,.75));
@@ -55,6 +56,14 @@ body{
   color:rgba(255,255,255,.75);
   font-weight:1000;
   letter-spacing:.06em;
+  white-space:nowrap;
+}
+.topActions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
 }
 
 /* nav */
@@ -133,8 +142,6 @@ select:disabled, input:disabled{ opacity:.55; }
   grid-template-columns: 1fr 1fr;
   gap:10px;
 }
-
-/* 重要：ここは常に横並び */
 .grid2--always{ grid-template-columns: 1fr 1fr !important; }
 
 @media (max-width: 520px){
@@ -161,6 +168,17 @@ select:disabled, input:disabled{ opacity:.55; }
   color:var(--muted);
   font-weight:1000;
   letter-spacing:.08em;
+}
+
+.hint{
+  font-size:12px;
+  color: rgba(255,255,255,.70);
+  font-weight:900;
+  align-self:center;
+  padding:8px 10px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
 }
 
 /* segmented radio */
@@ -228,7 +246,7 @@ select:disabled, input:disabled{ opacity:.55; }
   justify-content:space-between;
   gap:10px;
 }
-.item__main{ min-width:0; }
+.item__main{ min-width:0; cursor:pointer; }
 .item__title{ font-weight:1000; }
 .item__meta{ font-size:12px; color:var(--muted); font-weight:900; margin-top:4px; }
 .item__btns{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
@@ -411,6 +429,12 @@ select:disabled, input:disabled{ opacity:.55; }
   padding:16px;
   box-shadow: 0 14px 60px rgba(0,0,0,.5);
 }
+.modal__card--edit{
+  width:min(560px, 96vw);
+  max-height: 88vh;
+  overflow:auto;
+}
 .modal__title{ font-weight:1000; letter-spacing:.08em; color: var(--accent); }
 .modal__text{ margin-top:10px; color: rgba(255,255,255,.88); font-weight:900; line-height:1.4; }
 .modal__actions{ margin-top:14px; display:flex; justify-content:flex-end; gap:10px; }
+.editBlock{ display:flex; flex-direction:column; gap:10px; }
