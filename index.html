@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CONDUCTOR</title>
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=7" />
 </head>
 <body>
   <header class="topbar">
@@ -15,7 +15,14 @@
         <div class="brand__sub">Task Operation System</div>
       </div>
     </div>
-    <div class="clock" id="clockText">--:--</div>
+
+    <div class="topActions">
+      <button class="btn btn--ghost btn--mini" id="btnShareExport" type="button">共有書出</button>
+      <button class="btn btn--ghost btn--mini" id="btnShareImport" type="button">共有読込</button>
+      <button class="btn btn--ghost btn--mini" id="btnTTExport" type="button">運行表保存</button>
+      <button class="btn btn--ghost btn--mini" id="btnTTImport" type="button">運行表読込</button>
+      <div class="clock" id="clockText">--:--</div>
+    </div>
   </header>
 
   <nav class="nav">
@@ -27,7 +34,7 @@
   <main class="main">
 
     <!-- 勉強 -->
-    <section class="screen is-active" id="screenStudy" aria-label="勉強設定">
+    <section class="screen is-active" id="screenStudy">
       <div class="card">
         <div class="card__title">新規タスク</div>
 
@@ -76,9 +83,10 @@
                 <span class="field__label">分</span>
                 <input id="studyDurationMin" type="number" min="1" step="1" value="30" />
               </label>
+              <div class="hint" id="studyAutoHint" hidden>自動入力</div>
             </div>
 
-            <!-- ここだけ横並び固定 -->
+            <!-- 時刻：横並び固定 -->
             <div class="grid2 grid2--always" id="studyUntilWrap" hidden>
               <label class="field">
                 <span class="field__label">開始</span>
@@ -107,7 +115,6 @@
         <div class="card__head">
           <div class="card__title">運行表</div>
           <div class="card__tools">
-            <button class="btn btn--ghost" id="btnStudyClearDone" type="button">完了ログ消去</button>
             <button class="btn btn--ghost" id="btnResetAll" type="button">全初期化</button>
           </div>
         </div>
@@ -115,13 +122,18 @@
       </div>
 
       <div class="card">
-        <div class="card__title">完了ログ</div>
+        <div class="card__head">
+          <div class="card__title">完了ログ</div>
+          <div class="card__tools">
+            <button class="btn btn--ghost" id="btnStudyClearDone" type="button">ログ一括消去</button>
+          </div>
+        </div>
         <ul class="list" id="studyDone"></ul>
       </div>
     </section>
 
     <!-- 生活 -->
-    <section class="screen" id="screenLife" aria-label="生活設定">
+    <section class="screen" id="screenLife">
       <div class="card">
         <div class="card__title">新規タスク</div>
 
@@ -157,7 +169,7 @@
               </label>
             </div>
 
-            <!-- ここだけ横並び固定 -->
+            <!-- 時刻：横並び固定 -->
             <div class="grid2 grid2--always" id="lifeUntilWrap" hidden>
               <label class="field">
                 <span class="field__label">開始</span>
@@ -178,7 +190,6 @@
         <div class="card__head">
           <div class="card__title">運行表</div>
           <div class="card__tools">
-            <button class="btn btn--ghost" id="btnLifeClearDone" type="button">完了ログ消去</button>
             <button class="btn btn--ghost" id="btnResetAll2" type="button">全初期化</button>
           </div>
         </div>
@@ -186,13 +197,18 @@
       </div>
 
       <div class="card">
-        <div class="card__title">完了ログ</div>
+        <div class="card__head">
+          <div class="card__title">完了ログ</div>
+          <div class="card__tools">
+            <button class="btn btn--ghost" id="btnLifeClearDone" type="button">ログ一括消去</button>
+          </div>
+        </div>
         <ul class="list" id="lifeDone"></ul>
       </div>
     </section>
 
     <!-- 実行 -->
-    <section class="screen" id="screenRun" aria-label="実行">
+    <section class="screen" id="screenRun">
       <div class="card">
         <div class="card__head">
           <div class="card__title">運転席</div>
@@ -239,7 +255,7 @@
 
   </main>
 
-  <!-- モーダル -->
+  <!-- confirm modal -->
   <div class="modal" id="modal" hidden>
     <div class="modal__card">
       <div class="modal__title" id="modalTitle">確認</div>
@@ -251,6 +267,143 @@
     </div>
   </div>
 
-  <script src="app.js?v=6"></script>
+  <!-- edit modal -->
+  <div class="modal" id="editModal" hidden>
+    <div class="modal__card modal__card--edit">
+      <div class="modal__title" id="editTitle">編集</div>
+
+      <form id="editForm" class="form">
+        <!-- 共通 -->
+        <div class="hint" id="editWhere">—</div>
+
+        <!-- study -->
+        <div id="editStudyBlock" class="editBlock" hidden>
+          <label class="field">
+            <span class="field__label">系</span>
+            <select id="editCategory"></select>
+          </label>
+
+          <label class="field">
+            <span class="field__label">科目</span>
+            <select id="editSubject"></select>
+          </label>
+
+          <label class="field" id="editOtherSubjectWrap" hidden>
+            <span class="field__label">その他の科目名</span>
+            <input id="editOtherSubject" type="text" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">タスク内容</span>
+            <select id="editTaskType"></select>
+          </label>
+
+          <label class="field" id="editTaskFreeWrap" hidden>
+            <span class="field__label">タスク内容（自由入力）</span>
+            <input id="editTaskFree" type="text" />
+          </label>
+
+          <div class="box">
+            <div class="box__title">時間</div>
+
+            <div class="seg">
+              <label class="seg__item">
+                <input type="radio" name="editTimeMode" value="duration" />
+                <span>時間</span>
+              </label>
+              <label class="seg__item">
+                <input type="radio" name="editTimeMode" value="until" />
+                <span>時刻</span>
+              </label>
+            </div>
+
+            <div class="grid2" id="editDurationWrap" hidden>
+              <label class="field">
+                <span class="field__label">分</span>
+                <input id="editDurationMin" type="number" min="1" step="1" />
+              </label>
+              <div class="hint" id="editAutoHint" hidden>自動入力</div>
+            </div>
+
+            <div class="grid2 grid2--always" id="editUntilWrap" hidden>
+              <label class="field">
+                <span class="field__label">開始</span>
+                <input id="editFromTime" type="time" />
+              </label>
+              <label class="field">
+                <span class="field__label">終了</span>
+                <input id="editToTime" type="time" />
+              </label>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="box__head">
+              <div class="box__title">範囲</div>
+              <button type="button" class="btn btn--ghost" id="btnAddRangeEdit">＋ 追加</button>
+            </div>
+            <div id="editRangesList" class="ranges"></div>
+          </div>
+        </div>
+
+        <!-- life -->
+        <div id="editLifeBlock" class="editBlock" hidden>
+          <label class="field">
+            <span class="field__label">内容</span>
+            <select id="editLifeTaskType"></select>
+          </label>
+
+          <label class="field" id="editLifeTaskFreeWrap" hidden>
+            <span class="field__label">内容（自由入力）</span>
+            <input id="editLifeTaskFree" type="text" />
+          </label>
+
+          <div class="box">
+            <div class="box__title">時間</div>
+
+            <div class="seg">
+              <label class="seg__item">
+                <input type="radio" name="editTimeMode" value="duration" />
+                <span>時間</span>
+              </label>
+              <label class="seg__item">
+                <input type="radio" name="editTimeMode" value="until" />
+                <span>時刻</span>
+              </label>
+            </div>
+
+            <div class="grid2" id="editDurationWrapLife" hidden>
+              <label class="field">
+                <span class="field__label">分</span>
+                <input id="editDurationMinLife" type="number" min="1" step="1" />
+              </label>
+            </div>
+
+            <div class="grid2 grid2--always" id="editUntilWrapLife" hidden>
+              <label class="field">
+                <span class="field__label">開始</span>
+                <input id="editFromTimeLife" type="time" />
+              </label>
+              <label class="field">
+                <span class="field__label">終了</span>
+                <input id="editToTimeLife" type="time" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost" id="editDelete" type="button">✕</button>
+          <button class="btn btn--ghost" id="editCancel" type="button">キャンセル</button>
+          <button class="btn btn--primary" id="editSave" type="submit">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- hidden file input for timetable import -->
+  <input id="ttFileInput" type="file" accept="application/json" hidden />
+
+  <script src="app.js?v=7"></script>
 </body>
-        </html>
+              </html>
