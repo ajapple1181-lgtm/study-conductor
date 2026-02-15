@@ -1,4 +1,4 @@
-const LS_KEY = "conductor.v3";
+const LS_KEY = "conductor.v4"; // ← 今回からv4（旧状態を壊さず新保存に）
 
 const $ = (q) => document.querySelector(q);
 
@@ -17,7 +17,7 @@ const SUBJECTS_BY_CATEGORY = {
   "英語系": ["英C", "論表"],
   "理科系": ["化学", "生物"],
   "社会系": ["地理", "公共"],
-  "その他": ["その他"], // 依頼：その他を表示
+  "その他": ["その他"],
 };
 
 const TASK_OPTIONS_BY_SUBJECT = {
@@ -42,8 +42,17 @@ const ALL_TASK_OPTIONS = uniq([
 
 let state = loadState();
 
-/* ===== DOM ===== */
+/* =========================
+   DOM
+========================= */
 const clockText = $("#clockText");
+
+const btnShareExport = $("#btnShareExport");
+const btnShareImport = $("#btnShareImport");
+const btnTTExport = $("#btnTTExport");
+const btnTTImport = $("#btnTTImport");
+const ttFileInput = $("#ttFileInput");
+
 const navBtns = Array.from(document.querySelectorAll(".nav__btn"));
 const screens = {
   study: $("#screenStudy"),
@@ -67,6 +76,7 @@ const studyUntilWrap = $("#studyUntilWrap");
 const studyDurationMin = $("#studyDurationMin");
 const studyFromTime = $("#studyFromTime");
 const studyToTime = $("#studyToTime");
+const studyAutoHint = $("#studyAutoHint");
 
 const studyRangesList = $("#studyRangesList");
 const btnAddRangeStudy = $("#btnAddRangeStudy");
@@ -111,67 +121,128 @@ const btnSkip = $("#btnSkip");
 const nextPreview = $("#nextPreview");
 const btnRunResetTimer = $("#btnRunResetTimer");
 
-/* Modal */
+/* Confirm Modal */
 const modal = $("#modal");
 const modalTitle = $("#modalTitle");
 const modalText = $("#modalText");
 const modalCancel = $("#modalCancel");
 const modalOk = $("#modalOk");
 
-/* ===== init ===== */
-initCategorySelect();
-initLifeSelect();
+/* Edit Modal */
+const editModal = $("#editModal");
+const editTitle = $("#editTitle");
+const editWhere = $("#editWhere");
+const editForm = $("#editForm");
+const editDelete = $("#editDelete");
+const editCancel = $("#editCancel");
+
+const editStudyBlock = $("#editStudyBlock");
+const editLifeBlock = $("#editLifeBlock");
+
+/* edit - study */
+const editCategory = $("#editCategory");
+const editSubject = $("#editSubject");
+const editOtherSubjectWrap = $("#editOtherSubjectWrap");
+const editOtherSubject = $("#editOtherSubject");
+const editTaskType = $("#editTaskType");
+const editTaskFreeWrap = $("#editTaskFreeWrap");
+const editTaskFree = $("#editTaskFree");
+const editDurationWrap = $("#editDurationWrap");
+const editUntilWrap = $("#editUntilWrap");
+const editDurationMin = $("#editDurationMin");
+const editFromTime = $("#editFromTime");
+const editToTime = $("#editToTime");
+const editRangesList = $("#editRangesList");
+const btnAddRangeEdit = $("#btnAddRangeEdit");
+const editAutoHint = $("#editAutoHint");
+
+/* edit - life */
+const editLifeTaskType = $("#editLifeTaskType");
+const editLifeTaskFreeWrap = $("#editLifeTaskFreeWrap");
+const editLifeTaskFree = $("#editLifeTaskFree");
+const editDurationWrapLife = $("#editDurationWrapLife");
+const editUntilWrapLife = $("#editUntilWrapLife");
+const editDurationMinLife = $("#editDurationMinLife");
+const editFromTimeLife = $("#editFromTimeLife");
+const editToTimeLife = $("#editToTimeLife");
+
+/* edit context */
+let editCtx = null; // { line: "study"|"life", where:"queue"|"done", index:number }
+
+/* =========================
+   init
+========================= */
+initCategorySelect(studyCategory);
+initLifeSelect(lifeTaskType);
 
 syncStudySubjectSelect();
 syncStudyTaskSelect();
-
 syncTimeModeUI("study");
 syncTimeModeUI("life");
 
 ensureAtLeastOneRangeRow(studyRangesList);
-
 renderAll();
 startClock();
 startTick();
 
-// 別タブで状態が変わっても追従
 window.addEventListener("storage", () => { state = loadState(); renderAll(); });
 
-/* ===== navigation ===== */
+/* =========================
+   navigation
+========================= */
 navBtns.forEach((b) => b.addEventListener("click", () => setScreen(b.dataset.screen)));
 
-/* ===== Study events ===== */
+/* =========================
+   top actions
+========================= */
+btnShareExport.addEventListener("click", shareExport);
+btnShareImport.addEventListener("click", shareImport);
+
+btnTTExport.addEventListener("click", exportTimetableFile);
+btnTTImport.addEventListener("click", () => ttFileInput.click());
+ttFileInput.addEventListener("change", importTimetableFile);
+
+/* =========================
+   Study events
+========================= */
 studyCategory.addEventListener("change", () => {
   syncStudySubjectSelect();
   syncStudyTaskSelect();
+  updateAutoDurationStudyForm();
   renderAll();
 });
-
 studySubject.addEventListener("change", () => {
   syncStudyTaskSelect();
+  updateAutoDurationStudyForm();
 });
-
 studyOtherSubject.addEventListener("input", () => {
   syncStudyTaskSelect();
+  updateAutoDurationStudyForm();
   renderAll();
 });
-
 studyTaskType.addEventListener("change", () => {
   studyTaskFreeWrap.hidden = (studyTaskType.value !== "自由入力");
 });
 
 document.querySelectorAll('input[name="studyTimeMode"]').forEach((r) => {
-  r.addEventListener("change", () => syncTimeModeUI("study"));
+  r.addEventListener("change", () => {
+    syncTimeModeUI("study");
+    updateAutoDurationStudyForm();
+  });
 });
 
 btnAddRangeStudy.addEventListener("click", () => addRangeRow(studyRangesList));
+
+studyRangesList.addEventListener("input", () => updateAutoDurationStudyForm());
 
 studyForm.addEventListener("submit", (e) => {
   e.preventDefault();
   addStudyTask();
 });
 
-/* ===== Life events ===== */
+/* =========================
+   Life events
+========================= */
 lifeTaskType.addEventListener("change", () => {
   lifeTaskFreeWrap.hidden = (lifeTaskType.value !== "自由入力");
 });
@@ -185,37 +256,19 @@ lifeForm.addEventListener("submit", (e) => {
   addLifeTask();
 });
 
-/* ===== Range complete toggle (run screen) ===== */
-nowRanges.addEventListener("click", (e) => {
-  const li = e.target.closest("li");
-  if (!li) return;
-
-  const cur = getRunCurrentTask();
-  if (!cur || cur.kind !== "study") return;
-
-  const idx = Number(li.dataset.idx);
-  if (!Number.isInteger(idx)) return;
-
-  if (!cur.rangeDone) cur.rangeDone = [];
-  const pos = cur.rangeDone.indexOf(idx);
-  if (pos >= 0) cur.rangeDone.splice(pos, 1);
-  else cur.rangeDone.push(idx);
-
-  saveState();
-  renderDriver();
-});
-
-/* ===== Clear / Reset ===== */
+/* =========================
+   Done clear / reset
+========================= */
 btnStudyClearDone.addEventListener("click", () => confirmModal(
   "確認",
-  "勉強の完了ログを消しますか？",
+  "勉強の完了ログを一括で消しますか？",
   "消去",
   () => { state.study.done = []; saveState(); renderAll(); }
 ));
 
 btnLifeClearDone.addEventListener("click", () => confirmModal(
   "確認",
-  "生活の完了ログを消しますか？",
+  "生活の完了ログを一括で消しますか？",
   "消去",
   () => { state.life.done = []; saveState(); renderAll(); }
 ));
@@ -233,11 +286,15 @@ btnResetAll2.addEventListener("click", () => confirmModal(
   () => resetAll()
 ));
 
-/* ===== Run line pick ===== */
+/* =========================
+   Run line pick
+========================= */
 pickStudy.addEventListener("click", () => setRunLine("study"));
 pickLife.addEventListener("click", () => setRunLine("life"));
 
-/* ===== Run controls ===== */
+/* =========================
+   Run controls
+========================= */
 btnStartPause.addEventListener("click", () => toggleStartPause());
 
 btnArrive.addEventListener("click", () => {
@@ -260,11 +317,84 @@ btnRunResetTimer.addEventListener("click", () => {
   });
 });
 
-/* ===== Modal ===== */
+/* =========================
+   Range complete toggle (run)
+========================= */
+nowRanges.addEventListener("click", (e) => {
+  const li = e.target.closest("li");
+  if (!li) return;
+
+  const cur = getRunCurrentTask();
+  if (!cur || cur.kind !== "study") return;
+
+  const idx = Number(li.dataset.idx);
+  if (!Number.isInteger(idx)) return;
+
+  if (!cur.rangeDone) cur.rangeDone = [];
+  const pos = cur.rangeDone.indexOf(idx);
+  if (pos >= 0) cur.rangeDone.splice(pos, 1);
+  else cur.rangeDone.push(idx);
+
+  saveState();
+  renderDriver();
+});
+
+/* =========================
+   Confirm modal
+========================= */
 modalCancel.addEventListener("click", closeModal);
 modalOk.addEventListener("click", () => {
   if (modalOk._onOk) modalOk._onOk();
   closeModal();
+});
+
+/* =========================
+   Edit modal events
+========================= */
+editCancel.addEventListener("click", closeEditModal);
+editDelete.addEventListener("click", () => {
+  if (!editCtx) return;
+  const { line, where, index } = editCtx;
+  confirmModal("確認", "このタスクを削除しますか？", "削除", () => {
+    deleteByEditCtx(line, where, index);
+    closeEditModal();
+  });
+});
+
+btnAddRangeEdit.addEventListener("click", () => addRangeRow(editRangesList));
+editRangesList.addEventListener("input", () => updateAutoDurationEdit());
+
+editCategory.addEventListener("change", () => {
+  syncEditSubjectSelect();
+  syncEditTaskSelect();
+  updateAutoDurationEdit();
+});
+editSubject.addEventListener("change", () => {
+  syncEditTaskSelect();
+  updateAutoDurationEdit();
+});
+editOtherSubject.addEventListener("input", () => {
+  syncEditTaskSelect();
+  updateAutoDurationEdit();
+});
+editTaskType.addEventListener("change", () => {
+  editTaskFreeWrap.hidden = (editTaskType.value !== "自由入力");
+});
+editLifeTaskType.addEventListener("change", () => {
+  editLifeTaskFreeWrap.hidden = (editLifeTaskType.value !== "自由入力");
+});
+
+document.querySelectorAll('input[name="editTimeMode"]').forEach((r) => {
+  r.addEventListener("change", () => {
+    syncEditTimeModeUI();
+    updateAutoDurationEdit();
+  });
+});
+
+editForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!editCtx) return;
+  saveEdit();
 });
 
 /* =========================
@@ -291,25 +421,14 @@ function loadState(){
     if (!raw) return defaultState();
     const p = JSON.parse(raw);
 
-    // migrate: old untilHHMM -> from/to
-    for (const line of ["study","life"]){
-      const q = (p[line]?.queue) || [];
-      const d = (p[line]?.done) || [];
-      for (const t of [...q, ...d]){
-        if (t?.timeSpec?.mode === "until" && t.timeSpec.untilHHMM && !t.timeSpec.toHHMM){
-          t.timeSpec = { mode:"until", fromHHMM:"", toHHMM:t.timeSpec.untilHHMM };
-          delete t.timeSpec.untilHHMM;
-        }
-      }
-    }
-    return {
+    return sanitizeState({
       ...defaultState(),
       ...p,
       ui: { ...defaultState().ui, ...(p.ui||{}) },
       study: { ...defaultState().study, ...(p.study||{}) },
       life:  { ...defaultState().life,  ...(p.life||{}) },
       run:   { ...defaultState().run,   ...(p.run||{}) },
-    };
+    });
   }catch{
     return defaultState();
   }
@@ -323,6 +442,58 @@ function resetAll(){
   state = defaultState();
   saveState();
   renderAll();
+}
+
+function sanitizeState(s){
+  s.study.queue = (s.study.queue||[]).map(sanitizeTask);
+  s.study.done  = (s.study.done||[]).map(sanitizeTask);
+  s.life.queue  = (s.life.queue||[]).map(sanitizeTask);
+  s.life.done   = (s.life.done||[]).map(sanitizeTask);
+  return s;
+}
+
+function sanitizeTask(t){
+  if (!t || typeof t !== "object") return null;
+  const out = { ...t };
+
+  // kind inference
+  if (!out.kind){
+    out.kind = out.taskType != null ? "study" : "life";
+  }
+
+  // id
+  if (!out.id) out.id = uid();
+
+  // defaults
+  if (out.kind === "study"){
+    out.category = (out.category || "その他").trim();
+    out.subject = (out.subject || "—").trim();
+    out.taskType = (out.taskType || "—").trim();
+    out.color = COLORS[out.category] || COLORS["その他"];
+    out.ranges = Array.isArray(out.ranges) ? out.ranges : [];
+    out.rangeSteps = computeRangeSteps(out.ranges);
+    out.rangeDone = Array.isArray(out.rangeDone) ? out.rangeDone : [];
+  } else {
+    out.category = "その他";
+    out.subject = "生活";
+    out.task = (out.task || "—").trim();
+    out.color = COLORS["その他"];
+    out.ranges = [];
+  }
+
+  // timeSpec
+  if (!out.timeSpec || typeof out.timeSpec !== "object"){
+    out.timeSpec = { mode:"duration", durationMin: 30 };
+  } else {
+    if (out.timeSpec.mode === "duration"){
+      out.timeSpec.durationMin = Math.max(1, parseInt(out.timeSpec.durationMin || 1, 10));
+    } else {
+      out.timeSpec.fromHHMM = (out.timeSpec.fromHHMM || "").trim();
+      out.timeSpec.toHHMM = (out.timeSpec.toHHMM || "").trim();
+    }
+  }
+
+  return out;
 }
 
 /* =========================
@@ -342,23 +513,22 @@ function setScreenInternal(screen){
 /* =========================
    Select init
 ========================= */
-function initCategorySelect(){
-  studyCategory.innerHTML = "";
-  addOpt(studyCategory, "", "—");
-  Object.keys(SUBJECTS_BY_CATEGORY).forEach(cat => addOpt(studyCategory, cat, cat));
-  studyCategory.value = "";
+function initCategorySelect(selectEl){
+  selectEl.innerHTML = "";
+  addOpt(selectEl, "", "—");
+  Object.keys(SUBJECTS_BY_CATEGORY).forEach(cat => addOpt(selectEl, cat, cat));
+  selectEl.value = "";
 }
 
-function initLifeSelect(){
-  lifeTaskType.innerHTML = "";
-  addOpt(lifeTaskType, "", "—");
-  LIFE_OPTIONS.forEach(x => addOpt(lifeTaskType, x, x));
-  lifeTaskType.value = "";
-  lifeTaskFreeWrap.hidden = true;
+function initLifeSelect(selectEl){
+  selectEl.innerHTML = "";
+  addOpt(selectEl, "", "—");
+  LIFE_OPTIONS.forEach(x => addOpt(selectEl, x, x));
+  selectEl.value = "";
 }
 
 /* =========================
-   Study select chain
+   Study select chain (main)
 ========================= */
 function syncStudySubjectSelect(){
   const cat = studyCategory.value;
@@ -377,8 +547,7 @@ function syncStudySubjectSelect(){
     return;
   }
 
-  const subs = SUBJECTS_BY_CATEGORY[cat] || [];
-  subs.forEach(s => addOpt(studySubject, s, s));
+  (SUBJECTS_BY_CATEGORY[cat]||[]).forEach(s => addOpt(studySubject, s, s));
 
   if (cat === "その他"){
     studySubject.value = "その他";
@@ -398,7 +567,6 @@ function resolveStudySubject(){
   if (cat !== "その他"){
     return (studySubject.value || "").trim();
   }
-
   const typed = (studyOtherSubject.value || "").trim();
   return typed ? typed : "その他";
 }
@@ -424,7 +592,6 @@ function syncStudyTaskSelect(){
 
   let opts = TASK_OPTIONS_BY_SUBJECT[subj];
   if (!opts){
-    // その他科目：全選択肢 + 自由入力
     opts = uniq(["教科書", ...ALL_TASK_OPTIONS.filter(x => x !== "教科書")]);
   }
 
@@ -435,31 +602,22 @@ function syncStudyTaskSelect(){
 }
 
 /* =========================
-   Time mode UI + required
+   Time mode UI
 ========================= */
 function syncTimeModeUI(kind){
   if (kind === "study"){
     const mode = radioValue("studyTimeMode");
     studyDurationWrap.hidden = (mode !== "duration");
     studyUntilWrap.hidden = (mode !== "until");
-
-    if (studyDurationMin) studyDurationMin.required = (mode === "duration");
-    if (studyFromTime) studyFromTime.required = (mode === "until");
-    if (studyToTime) studyToTime.required = (mode === "until");
   } else {
     const mode = radioValue("lifeTimeMode");
     lifeDurationWrap.hidden = (mode !== "duration");
     lifeUntilWrap.hidden = (mode !== "until");
-
-    if (lifeDurationMin) lifeDurationMin.required = (mode === "duration");
-    if (lifeFromTime) lifeFromTime.required = (mode === "until");
-    if (lifeToTime) lifeToTime.required = (mode === "until");
   }
 }
 
 /* =========================
-   Ranges (start/end)
-   - 両方が整数：開始～終了を全部展開（71-71は1個だけ）
+   Ranges
 ========================= */
 function ensureAtLeastOneRangeRow(container){
   if (container.querySelectorAll(".rangeRow").length === 0){
@@ -471,13 +629,16 @@ function addRangeRow(container, prefill){
   const row = document.createElement("div");
   row.className = "rangeRow";
   row.innerHTML = `
-    <input class="rangeStart" type="text" placeholder="開始（例：12 / 3）" />
-    <input class="rangeEnd" type="text" placeholder="終了（例：18 / 10）" />
+    <input class="rangeStart" type="text" placeholder="開始（例：11(2-3) / 3）" />
+    <input class="rangeEnd" type="text" placeholder="終了（例：15(3) / 7）" />
     <button type="button" class="rangeDel">×</button>
   `;
   row.querySelector(".rangeDel").addEventListener("click", () => {
     row.remove();
     ensureAtLeastOneRangeRow(container);
+    // auto duration update for main
+    if (container === studyRangesList) updateAutoDurationStudyForm();
+    if (container === editRangesList) updateAutoDurationEdit();
   });
 
   if (prefill){
@@ -496,33 +657,92 @@ function readRanges(container){
   })).filter(x => x.start || x.end);
 }
 
-function toIntStrict(s){
-  if (!s) return null;
-  const t = s.trim();
-  if (!/^-?\d+$/.test(t)) return null;
-  const n = parseInt(t, 10);
-  return (String(n) === t) ? n : null;
+function parseLeadingInt(token){
+  const t = (token || "").trim();
+  const m = /^(-?\d+)(.*)$/.exec(t);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  if (String(n) !== m[1]) return null;
+  return { num: n, rest: m[2] || "" };
 }
 
+/**
+ * 展開ルール
+ * - 両端が「先頭が整数」であれば、整数の列で埋める
+ *   - 端の表示は元の文字列を保持（例：11(2-3) / 15(3)）
+ *   - 中間は整数だけ（例：12,13,14）
+ * - 片方だけ整数/どちらも非整数 → 1行表示
+ */
 function computeRangeSteps(ranges){
   const out = [];
   for (const r of ranges){
     const a = (r.start || "").trim();
     const b = (r.end || "").trim();
 
-    const ai = toIntStrict(a);
-    const bi = toIntStrict(b);
+    const pa = parseLeadingInt(a);
+    const pb = parseLeadingInt(b);
 
-    if (ai != null && bi != null){
-      const step = ai <= bi ? 1 : -1;
-      for (let v = ai; step === 1 ? v <= bi : v >= bi; v += step){
+    if (pa && pb){
+      if (pa.num === pb.num){
+        if (a === b) out.push(a);
+        else {
+          out.push(a);
+          out.push(b);
+        }
+        continue;
+      }
+
+      const step = pa.num < pb.num ? 1 : -1;
+      out.push(a); // 始点は文字列のまま
+      for (let v = pa.num + step; step === 1 ? v < pb.num : v > pb.num; v += step){
         out.push(String(v));
       }
+      out.push(b); // 終点も文字列のまま
       continue;
     }
+
+    // 片側だけ整数で片側空など：そのまま
+    if (a && !b){ out.push(a); continue; }
+    if (!a && b){ out.push(b); continue; }
+
+    // 非整数：通常表示
     out.push(rangeText(r));
   }
   return out;
+}
+
+/* =========================
+   Auto duration
+========================= */
+function perRangeMinutes(subject){
+  if (subject === "化学" || subject === "生物") return 20;
+  if (subject === "数学Ⅲ" || subject === "数学C") return 10;
+  return null;
+}
+
+function computeAutoDurationMin(subject, ranges){
+  const per = perRangeMinutes(subject);
+  if (!per) return null;
+  const steps = computeRangeSteps(ranges);
+  const n = Math.max(1, steps.length);
+  return per * n;
+}
+
+function updateAutoDurationStudyForm(){
+  const mode = radioValue("studyTimeMode");
+  const cat = studyCategory.value || "";
+  const subj = resolveStudySubject();
+  const ranges = readRanges(studyRangesList);
+  const auto = (mode === "duration") ? computeAutoDurationMin(subj, ranges) : null;
+
+  if (auto != null){
+    studyDurationMin.value = String(auto);
+    studyDurationMin.disabled = true;
+    studyAutoHint.hidden = false;
+  } else {
+    studyDurationMin.disabled = false;
+    studyAutoHint.hidden = true;
+  }
 }
 
 /* =========================
@@ -544,24 +764,29 @@ function addStudyTask(){
   const mode = radioValue("studyTimeMode");
   if (!mode){ alert("時間か時刻を選んでください"); return; }
 
-  const timeSpec = readTimeSpec(mode, studyDurationMin?.value, studyFromTime?.value, studyToTime?.value);
-
   const ranges = readRanges(studyRangesList);
   const rangeSteps = computeRangeSteps(ranges);
 
-  const t = {
+  let timeSpec = readTimeSpec(mode, studyDurationMin?.value, studyFromTime?.value, studyToTime?.value);
+
+  // auto duration override
+  if (mode === "duration"){
+    const auto = computeAutoDurationMin(subject, ranges);
+    if (auto != null) timeSpec = { mode:"duration", durationMin: auto };
+  }
+
+  const t = sanitizeTask({
     id: uid(),
     kind: "study",
     category: cat,
     subject: subject || "—",
-    color: COLORS[cat] || COLORS["その他"],
     taskType: taskType || "—",
     ranges,
     rangeSteps,
     rangeDone: [],
     timeSpec,
     createdAt: Date.now(),
-  };
+  });
 
   state.study.queue.push(t);
 
@@ -570,6 +795,7 @@ function addStudyTask(){
   studyTaskFreeWrap.hidden = true;
   studyRangesList.innerHTML = "";
   addRangeRow(studyRangesList);
+  updateAutoDurationStudyForm();
 
   saveState();
   renderAll();
@@ -587,17 +813,13 @@ function addLifeTask(){
 
   const timeSpec = readTimeSpec(mode, lifeDurationMin?.value, lifeFromTime?.value, lifeToTime?.value);
 
-  const t = {
+  const t = sanitizeTask({
     id: uid(),
     kind: "life",
-    category: "その他",
-    subject: "生活",
-    color: COLORS["その他"],
     task: task || "—",
-    ranges: [],
     timeSpec,
     createdAt: Date.now(),
-  };
+  });
 
   state.life.queue.push(t);
 
@@ -619,7 +841,7 @@ function readTimeSpec(mode, durationMinRaw, fromHHMM, toHHMM){
 }
 
 /* =========================
-   Render
+   Render lists + edit click
 ========================= */
 function renderAll(){
   setScreenInternal(state.ui.screen);
@@ -638,18 +860,21 @@ function renderAll(){
 
 function renderQueueList(el, queue, line){
   el.innerHTML = "";
-  if (queue.length === 0){
+  const list = queue.filter(Boolean);
+
+  if (list.length === 0){
     el.appendChild(emptyLi("（空です）"));
     return;
   }
 
-  queue.forEach((t) => {
+  list.forEach((t, idx) => {
     const li = document.createElement("li");
     li.className = "item";
     li.style.borderLeftColor = (t.color || css("--gray"));
 
     const main = document.createElement("div");
     main.className = "item__main";
+    main.addEventListener("click", () => openEdit(line, "queue", idx));
 
     const title = document.createElement("div");
     title.className = "item__title";
@@ -668,40 +893,45 @@ function renderQueueList(el, queue, line){
     btns.className = "item__btns";
     btns.appendChild(miniBtn("↑", () => moveTask(line, t.id, -1)));
     btns.appendChild(miniBtn("↓", () => moveTask(line, t.id, +1)));
-    btns.appendChild(miniBtn("✕", () => deleteTask(line, t.id))); // 削→✕
+    btns.appendChild(miniBtn("✕", () => deleteTask(line, t.id)));
+
     li.appendChild(main);
     li.appendChild(btns);
-
     el.appendChild(li);
   });
 }
 
 function renderDoneList(el, done, line){
   el.innerHTML = "";
-  if (done.length === 0){
+  const list = (done || []).filter(Boolean);
+
+  if (list.length === 0){
     el.appendChild(emptyLi("（まだありません）"));
     return;
   }
 
-  done.slice(0, 30).forEach((t, idx) => {
+  list.slice(0, 50).forEach((t, idx) => {
     const li = document.createElement("li");
     li.className = "item";
     li.style.borderLeftColor = (t.color || css("--gray"));
 
     const main = document.createElement("div");
     main.className = "item__main";
+    main.addEventListener("click", () => openEdit(line, "done", idx));
 
     const title = document.createElement("div");
     title.className = "item__title";
+    const time = t.completedAt ? fmtHHMM(new Date(t.completedAt)) : "--:--";
     title.textContent = (line === "study")
-      ? `${fmtHHMM(new Date(t.completedAt))}  ${showDash(t.subject)}｜${showDash(t.taskType)}`
-      : `${fmtHHMM(new Date(t.completedAt))}  生活｜${showDash(t.task)}`;
+      ? `${time}  ${showDash(t.subject)}｜${showDash(t.taskType)}`
+      : `${time}  生活｜${showDash(t.task)}`;
 
     main.appendChild(title);
 
     const btns = document.createElement("div");
     btns.className = "item__btns";
-    btns.appendChild(miniBtn("↩", () => restoreDone(line, idx))); // 復活
+    btns.appendChild(miniBtn("↩", () => restoreDone(line, idx)));
+    btns.appendChild(miniBtn("✕", () => deleteDone(line, idx))); // ← 個別削除
 
     li.appendChild(main);
     li.appendChild(btns);
@@ -718,7 +948,7 @@ function getLineState(line){
 
 function deleteTask(line, id){
   const ls = getLineState(line);
-  ls.queue = ls.queue.filter(t => t.id !== id);
+  ls.queue = ls.queue.filter(t => t && t.id !== id);
   if (state.run.line === line) stopRunTimer();
   saveState();
   renderAll();
@@ -726,7 +956,7 @@ function deleteTask(line, id){
 
 function moveTask(line, id, dir){
   const ls = getLineState(line);
-  const i = ls.queue.findIndex(t => t.id === id);
+  const i = ls.queue.findIndex(t => t && t.id === id);
   const j = i + dir;
   if (i < 0 || j < 0 || j >= ls.queue.length) return;
 
@@ -746,14 +976,21 @@ function restoreDone(line, doneIndex){
   if (!t) return;
 
   ls.done.splice(doneIndex, 1);
-
   const revived = { ...t };
   delete revived.completedAt;
 
-  ls.queue.unshift(revived);
+  // 復活：先頭に戻す
+  ls.queue.unshift(sanitizeTask(revived));
 
   if (state.run.line === line) stopRunTimer();
 
+  saveState();
+  renderAll();
+}
+
+function deleteDone(line, doneIndex){
+  const ls = getLineState(line);
+  ls.done.splice(doneIndex, 1);
   saveState();
   renderAll();
 }
@@ -779,7 +1016,7 @@ function getRunQueue(){
 }
 
 function getRunCurrentTask(){
-  const q = getRunQueue();
+  const q = getRunQueue().filter(Boolean);
   return (q.length === 0) ? null : q[0];
 }
 
@@ -826,14 +1063,14 @@ function computeEndAt(task){
   const to = (ts.toHHMM || "").trim();
   const now = new Date();
 
-  const start = parseHHMMToDate(from, now) || new Date(now); // 開始未入力→今
+  const start = parseHHMMToDate(from, now) || new Date(now);
   let end = parseHHMMToDate(to, now);
 
   if (!end){
-    end = new Date(start.getTime() + 30*60*1000); // 終了未入力→30分
+    end = new Date(start.getTime() + 30*60*1000);
   }
   if (end.getTime() <= start.getTime()){
-    end.setDate(end.getDate() + 1); // 逆転→翌日
+    end.setDate(end.getDate() + 1);
   }
 
   const nowMs = now.getTime();
@@ -897,7 +1134,7 @@ function renderDriver(){
     nowSub.textContent = "生活";
   }
 
-  // ranges（整数なら展開＋完了チェック）
+  // ranges
   if (cur.kind === "study" && cur.ranges && cur.ranges.length > 0){
     if (!cur.rangeSteps){
       cur.rangeSteps = computeRangeSteps(cur.ranges);
@@ -908,7 +1145,6 @@ function renderDriver(){
 
     nowRangesWrap.hidden = false;
     nowRanges.innerHTML = "";
-
     cur.rangeSteps.forEach((text, idx) => {
       const li = document.createElement("li");
       li.textContent = text;
@@ -920,11 +1156,10 @@ function renderDriver(){
     nowRangesWrap.hidden = true;
   }
 
-  const q = getRunQueue();
+  const q = getRunQueue().filter(Boolean);
   nextPreview.textContent = (q.length >= 2) ? taskShort(q[1]) : "—";
 
   btnStartPause.textContent = state.run.isRunning ? "一時停止" : "発車";
-
   updateTimerUI();
 }
 
@@ -976,9 +1211,7 @@ function updateTimerUI(){
    Tick / Clock
 ========================= */
 function startTick(){
-  setInterval(() => {
-    updateTimerUI();
-  }, 250);
+  setInterval(() => updateTimerUI(), 250);
 }
 
 function startClock(){
@@ -988,7 +1221,7 @@ function startClock(){
 }
 
 /* =========================
-   Modal helpers
+   Confirm modal helpers
 ========================= */
 function confirmModal(title, text, okText, onOk){
   modalTitle.textContent = title;
@@ -1003,8 +1236,413 @@ function closeModal(){
 }
 
 /* =========================
+   Edit modal
+========================= */
+function openEdit(line, where, index){
+  const ls = getLineState(line);
+  const arr = where === "queue" ? ls.queue : ls.done;
+  const t = arr[index];
+  if (!t) return;
+
+  editCtx = { line, where, index };
+  editWhere.textContent = `${line === "study" ? "勉強" : "生活"} / ${where === "queue" ? "運行表" : "完了ログ"}`;
+  editTitle.textContent = "編集";
+
+  if (t.kind === "study"){
+    editStudyBlock.hidden = false;
+    editLifeBlock.hidden = true;
+    openEditStudy(t);
+  } else {
+    editStudyBlock.hidden = true;
+    editLifeBlock.hidden = false;
+    openEditLife(t);
+  }
+
+  editModal.hidden = false;
+}
+
+function closeEditModal(){
+  editModal.hidden = true;
+  editCtx = null;
+}
+
+function deleteByEditCtx(line, where, index){
+  const ls = getLineState(line);
+  if (where === "queue"){
+    const t = ls.queue[index];
+    if (t && state.run.line === line) stopRunTimer();
+    ls.queue.splice(index, 1);
+  } else {
+    ls.done.splice(index, 1);
+  }
+  saveState();
+  renderAll();
+}
+
+function openEditStudy(t){
+  // init selects
+  initCategorySelect(editCategory);
+  editCategory.value = t.category || "";
+
+  syncEditSubjectSelect(t);
+  syncEditTaskSelect(t);
+
+  // free handling
+  if (editTaskType.value === "自由入力"){
+    editTaskFreeWrap.hidden = false;
+    editTaskFree.value = t.taskType || "";
+  } else {
+    editTaskFreeWrap.hidden = true;
+    editTaskFree.value = "";
+  }
+
+  // time mode
+  const mode = t.timeSpec?.mode || "duration";
+  setRadio("editTimeMode", mode);
+  syncEditTimeModeUI();
+
+  // fill time
+  if (mode === "duration"){
+    editDurationMin.value = String(t.timeSpec.durationMin || 30);
+  } else {
+    editFromTime.value = (t.timeSpec.fromHHMM || "");
+    editToTime.value = (t.timeSpec.toHHMM || "");
+  }
+
+  // ranges
+  editRangesList.innerHTML = "";
+  const ranges = Array.isArray(t.ranges) ? t.ranges : [];
+  if (ranges.length === 0) addRangeRow(editRangesList);
+  else ranges.forEach(r => addRangeRow(editRangesList, r));
+
+  updateAutoDurationEdit();
+}
+
+function openEditLife(t){
+  initLifeSelect(editLifeTaskType);
+  editLifeTaskType.value = LIFE_OPTIONS.includes(t.task) ? t.task : "自由入力";
+  editLifeTaskFreeWrap.hidden = (editLifeTaskType.value !== "自由入力");
+  editLifeTaskFree.value = (editLifeTaskType.value === "自由入力") ? (t.task || "") : "";
+
+  const mode = t.timeSpec?.mode || "duration";
+  setRadio("editTimeMode", mode);
+  syncEditTimeModeUI();
+
+  if (mode === "duration"){
+    editDurationMinLife.value = String(t.timeSpec.durationMin || 15);
+  } else {
+    editFromTimeLife.value = (t.timeSpec.fromHHMM || "");
+    editToTimeLife.value = (t.timeSpec.toHHMM || "");
+  }
+}
+
+function syncEditSubjectSelect(existingTask){
+  const cat = editCategory.value;
+
+  editSubject.innerHTML = "";
+  addOpt(editSubject, "", "—");
+
+  if (!cat){
+    editSubject.disabled = true;
+    editOtherSubjectWrap.hidden = true;
+    return;
+  }
+
+  (SUBJECTS_BY_CATEGORY[cat]||[]).forEach(s => addOpt(editSubject, s, s));
+
+  if (cat === "その他"){
+    editSubject.value = "その他";
+    editSubject.disabled = true;
+    editOtherSubjectWrap.hidden = false;
+    if (existingTask){
+      editOtherSubject.value = (existingTask.subject && existingTask.subject !== "その他") ? existingTask.subject : "";
+    }
+  } else {
+    editSubject.disabled = false;
+    editOtherSubjectWrap.hidden = true;
+    if (existingTask){
+      editSubject.value = existingTask.subject || "";
+    }
+  }
+}
+
+function resolveEditSubject(){
+  const cat = editCategory.value;
+  if (!cat) return "";
+  if (cat !== "その他"){
+    return (editSubject.value || "").trim();
+  }
+  const typed = (editOtherSubject.value || "").trim();
+  return typed ? typed : "その他";
+}
+
+function syncEditTaskSelect(existingTask){
+  const cat = editCategory.value;
+  const subj = resolveEditSubject();
+
+  editTaskType.innerHTML = "";
+  addOpt(editTaskType, "", "—");
+
+  if (!cat){
+    editTaskType.disabled = true;
+    editTaskFreeWrap.hidden = true;
+    return;
+  }
+
+  let opts = TASK_OPTIONS_BY_SUBJECT[subj];
+  if (!opts){
+    opts = uniq(["教科書", ...ALL_TASK_OPTIONS.filter(x => x !== "教科書")]);
+  }
+  opts.forEach(o => addOpt(editTaskType, o, o));
+  editTaskType.disabled = false;
+
+  if (existingTask){
+    const val = existingTask.taskType || "";
+    if (opts.includes(val)){
+      editTaskType.value = val;
+      editTaskFreeWrap.hidden = true;
+      editTaskFree.value = "";
+    } else {
+      editTaskType.value = "自由入力";
+      editTaskFreeWrap.hidden = false;
+      editTaskFree.value = val;
+    }
+  }
+
+  editTaskFreeWrap.hidden = (editTaskType.value !== "自由入力");
+}
+
+function syncEditTimeModeUI(){
+  const mode = radioValue("editTimeMode");
+
+  // study blocks
+  editDurationWrap.hidden = (mode !== "duration");
+  editUntilWrap.hidden = (mode !== "until");
+
+  // life blocks
+  editDurationWrapLife.hidden = (mode !== "duration");
+  editUntilWrapLife.hidden = (mode !== "until");
+}
+
+function updateAutoDurationEdit(){
+  if (!editCtx) return;
+  const { line, where, index } = editCtx;
+  const ls = getLineState(line);
+  const arr = where === "queue" ? ls.queue : ls.done;
+  const t = arr[index];
+  if (!t || t.kind !== "study") return;
+
+  const mode = radioValue("editTimeMode");
+  const subj = resolveEditSubject();
+  const ranges = readRanges(editRangesList);
+
+  const auto = (mode === "duration") ? computeAutoDurationMin(subj, ranges) : null;
+
+  if (auto != null){
+    editDurationMin.value = String(auto);
+    editDurationMin.disabled = true;
+    editAutoHint.hidden = false;
+  } else {
+    editDurationMin.disabled = false;
+    editAutoHint.hidden = true;
+  }
+}
+
+function saveEdit(){
+  const { line, where, index } = editCtx;
+  const ls = getLineState(line);
+  const arr = where === "queue" ? ls.queue : ls.done;
+  const t = arr[index];
+  if (!t) return;
+
+  if (t.kind === "study"){
+    const cat = (editCategory.value || "").trim();
+    if (!cat){ alert("系を選んでください"); return; }
+
+    const subject = resolveEditSubject();
+    if (cat !== "その他" && !subject){ alert("科目を選んでください"); return; }
+
+    const rawTask = (editTaskType.value || "").trim();
+    if (!rawTask){ alert("タスク内容を選んでください"); return; }
+    const free = (editTaskFree.value || "").trim();
+    const taskType = (rawTask === "自由入力") ? (free || "自由入力") : rawTask;
+
+    const mode = radioValue("editTimeMode") || "duration";
+    const ranges = readRanges(editRangesList);
+    const rangeSteps = computeRangeSteps(ranges);
+
+    let timeSpec;
+    if (mode === "duration"){
+      let d = Math.max(1, parseInt(editDurationMin.value || "1", 10));
+      const auto = computeAutoDurationMin(subject, ranges);
+      if (auto != null) d = auto;
+      timeSpec = { mode:"duration", durationMin: d };
+    } else {
+      timeSpec = { mode:"until", fromHHMM: (editFromTime.value||""), toHHMM: (editToTime.value||"") };
+    }
+
+    const updated = sanitizeTask({
+      ...t,
+      category: cat,
+      subject,
+      taskType,
+      ranges,
+      rangeSteps,
+      rangeDone: [], // 範囲が変わる可能性が高いのでリセット
+      timeSpec,
+    });
+
+    arr[index] = updated;
+
+    if (state.run.line === line) stopRunTimer();
+  } else {
+    // life
+    const raw = (editLifeTaskType.value || "").trim();
+    if (!raw){ alert("内容を選んでください"); return; }
+    const free = (editLifeTaskFree.value || "").trim();
+    const task = (raw === "自由入力") ? (free || "自由入力") : raw;
+
+    const mode = radioValue("editTimeMode") || "duration";
+    let timeSpec;
+    if (mode === "duration"){
+      const d = Math.max(1, parseInt(editDurationMinLife.value || "1", 10));
+      timeSpec = { mode:"duration", durationMin: d };
+    } else {
+      timeSpec = { mode:"until", fromHHMM: (editFromTimeLife.value||""), toHHMM: (editToTimeLife.value||"") };
+    }
+
+    arr[index] = sanitizeTask({ ...t, task, timeSpec });
+
+    if (state.run.line === line) stopRunTimer();
+  }
+
+  saveState();
+  renderAll();
+  closeEditModal();
+}
+
+/* =========================
+   Share export/import (full state)
+========================= */
+async function shareExport(){
+  try{
+    const portable = makePortableState();
+    const code = btoa(unescape(encodeURIComponent(JSON.stringify(portable))));
+    await navigator.clipboard.writeText(code);
+    alert("共有コードをコピーしました。別端末で「共有読込」に貼り付けてください。");
+  }catch(e){
+    const portable = makePortableState();
+    const code = btoa(unescape(encodeURIComponent(JSON.stringify(portable))));
+    prompt("共有コード（コピーして別端末へ）", code);
+  }
+}
+
+function shareImport(){
+  const code = prompt("共有コードを貼り付けてください");
+  if (!code) return;
+  try{
+    const json = decodeURIComponent(escape(atob(code.trim())));
+    const obj = JSON.parse(json);
+    state = mergeWithDefault(obj);
+    stopRunTimer();
+    saveState();
+    renderAll();
+    alert("読み込み完了");
+  }catch(e){
+    alert("読み込み失敗: " + e.message);
+  }
+}
+
+function makePortableState(){
+  const s = (typeof structuredClone === "function")
+    ? structuredClone(state)
+    : JSON.parse(JSON.stringify(state));
+
+  // 走行中は残り時間で停止状態にして持ち運ぶ
+  if (s.run && s.run.isRunning && s.run.endAt){
+    const remain = Math.max(0, s.run.endAt - Date.now());
+    s.run.isRunning = false;
+    s.run.remainingMs = remain;
+    s.run.endAt = null;
+    s.run.notifiedZero = false;
+  }
+  return s;
+}
+
+function mergeWithDefault(obj){
+  const d = defaultState();
+  const merged = {
+    ...d,
+    ...obj,
+    ui:   { ...d.ui,   ...(obj.ui||{}) },
+    study:{ ...d.study,...(obj.study||{}) },
+    life: { ...d.life, ...(obj.life||{}) },
+    run:  { ...d.run,  ...(obj.run||{}) },
+  };
+  return sanitizeState(merged);
+}
+
+/* =========================
+   Timetable save/load (queues only)
+========================= */
+function exportTimetableFile(){
+  const payload = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    studyQueue: (state.study.queue||[]).filter(Boolean),
+    lifeQueue: (state.life.queue||[]).filter(Boolean),
+  };
+  const name = `conductor_timetable_${stamp()}.json`;
+  downloadJson(payload, name);
+}
+
+function importTimetableFile(){
+  const file = ttFileInput.files && ttFileInput.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const obj = JSON.parse(String(reader.result || "{}"));
+      const sq = Array.isArray(obj.studyQueue) ? obj.studyQueue : [];
+      const lq = Array.isArray(obj.lifeQueue) ? obj.lifeQueue : [];
+
+      state.study.queue = sq.map(sanitizeTask).filter(Boolean);
+      state.life.queue = lq.map(sanitizeTask).filter(Boolean);
+
+      stopRunTimer();
+      saveState();
+      renderAll();
+      alert("運行表を読み込みました");
+    }catch(e){
+      alert("読み込み失敗: " + e.message);
+    }finally{
+      ttFileInput.value = "";
+    }
+  };
+  reader.readAsText(file);
+}
+
+function downloadJson(obj, filename){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* =========================
    Helpers
 ========================= */
+function setRadio(name, value){
+  const el = document.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (el) el.checked = true;
+}
+
 function taskShort(t){
   if (t.kind === "study") return `${showDash(t.subject)}｜${showDash(t.taskType)}`;
   return `生活｜${showDash(t.task)}`;
@@ -1057,12 +1695,22 @@ function uid(){
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+function stamp(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const da = String(d.getDate()).padStart(2,"0");
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mm = String(d.getMinutes()).padStart(2,"0");
+  return `${y}${m}${da}_${hh}${mm}`;
+}
+
 function miniBtn(text, onClick){
   const b = document.createElement("button");
   b.type = "button";
   b.className = "btn btn--ghost btn--mini";
   b.textContent = text;
-  b.addEventListener("click", onClick);
+  b.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
   return b;
 }
 
@@ -1131,4 +1779,4 @@ function toRgba(color, a){
     return `rgba(${r},${g},${b},${a})`;
   }
   return `rgba(255,255,255,${a})`;
-    }
+                                                                  }
