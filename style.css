@@ -27,7 +27,6 @@ body{
   color:var(--text);
 }
 
-/* top */
 .topbar{
   display:flex;
   align-items:center;
@@ -66,7 +65,6 @@ body{
   justify-content:flex-end;
 }
 
-/* nav */
 .nav{
   display:grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -89,7 +87,6 @@ body{
   box-shadow: 0 0 0 2px rgba(255,255,255,.05) inset;
 }
 
-/* screens */
 .main{
   padding:14px;
   display:flex;
@@ -99,7 +96,6 @@ body{
 .screen{ display:none; flex-direction:column; gap:14px; }
 .screen.is-active{ display:flex; }
 
-/* cards */
 .card{
   border:1px solid var(--border);
   border-radius:18px;
@@ -121,7 +117,6 @@ body{
   color: rgba(255,255,255,.78);
 }
 
-/* form */
 .form{ display:flex; flex-direction:column; gap:10px; }
 .field{ display:flex; flex-direction:column; gap:6px; }
 .field__label{ font-size:12px; color:var(--muted); font-weight:900; letter-spacing:.05em; }
@@ -149,7 +144,6 @@ select:disabled, input:disabled{ opacity:.55; }
   .grid2--always{ grid-template-columns: 1fr 1fr !important; }
 }
 
-/* boxed sections */
 .box{
   border:1px solid rgba(255,255,255,.10);
   border-radius:16px;
@@ -181,7 +175,6 @@ select:disabled, input:disabled{ opacity:.55; }
   background: rgba(255,255,255,.04);
 }
 
-/* segmented radio */
 .seg{
   display:grid;
   grid-template-columns: 1fr 1fr;
@@ -202,10 +195,8 @@ select:disabled, input:disabled{ opacity:.55; }
 }
 .seg__item input{ accent-color: var(--accent); }
 
-/* ranges */
 .ranges{ display:flex; flex-direction:column; gap:8px; }
 
-/* 範囲：開始/終了を上下、×は右に縦長 */
 .rangeRow{
   display:grid;
   grid-template-columns: 1fr 46px;
@@ -227,7 +218,6 @@ select:disabled, input:disabled{ opacity:.55; }
   cursor:pointer;
 }
 
-/* list */
 .list{
   list-style:none;
   padding-left:0;
@@ -251,7 +241,6 @@ select:disabled, input:disabled{ opacity:.55; }
 .item__meta{ font-size:12px; color:var(--muted); font-weight:900; margin-top:4px; }
 .item__btns{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 
-/* buttons */
 .btn{
   border:none;
   border-radius:14px;
@@ -275,7 +264,6 @@ select:disabled, input:disabled{ opacity:.55; }
   background: linear-gradient(180deg, var(--accentSoft), rgba(255,255,255,.06));
 }
 
-/* run */
 .linePick{
   display:grid;
   grid-template-columns: 1fr 1fr;
@@ -332,6 +320,12 @@ select:disabled, input:disabled{ opacity:.55; }
 .driver__sub{ margin-top:8px; color:var(--muted); font-weight:900; }
 
 .driver__ranges{ margin-top:12px; border-top:1px solid rgba(255,255,255,.10); padding-top:12px; }
+.driver__rangesHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
 .driver__rangesTitle{
   font-size:12px;
   color:var(--muted);
@@ -341,7 +335,7 @@ select:disabled, input:disabled{ opacity:.55; }
 .driver__rangesList{
   list-style:none;
   padding-left:0;
-  margin:8px 0 0;
+  margin:10px 0 0;
   display:flex;
   flex-direction:column;
   gap:6px;
@@ -408,7 +402,6 @@ select:disabled, input:disabled{ opacity:.55; }
 .next__label{ color:var(--muted); font-weight:1000; letter-spacing:.08em; font-size:12px; }
 .next__value{ margin-top:6px; font-weight:1000; }
 
-/* modal */
 .modal[hidden]{ display:none !important; }
 .modal{
   position:fixed;
@@ -437,4 +430,6 @@ select:disabled, input:disabled{ opacity:.55; }
 .modal__title{ font-weight:1000; letter-spacing:.08em; color: var(--accent); }
 .modal__text{ margin-top:10px; color: rgba(255,255,255,.88); font-weight:900; line-height:1.4; }
 .modal__actions{ margin-top:14px; display:flex; justify-content:flex-end; gap:10px; }
+
 .editBlock{ display:flex; flex-direction:column; gap:10px; }
+.editBlock[hidden]{ display:none !important; }
